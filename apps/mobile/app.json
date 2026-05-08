@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "Civik",
+    "slug": "civik",
+    "owner": "force23airr",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "civik",
+    "userInterfaceStyle": "automatic",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/00000000-0000-0000-0000-000000000000"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.civik.mobile",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Civik uses your location to attach GPS coordinates to trips and road events."
+      }
+    },
+    "android": {
+      "package": "com.civik.mobile",
+      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"]
+    },
+    "extra": {
+      "eas": {
+        "projectId": "00000000-0000-0000-0000-000000000000"
+      }
+    }
+  }
+}

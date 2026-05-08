@@ -214,6 +214,42 @@ User taps Record
 -> dashboard shows event on map
 ```
 
+## Local Development
+
+Copy the example environment file once:
+
+```sh
+cp .env.example .env
+```
+
+Start PostGIS:
+
+```sh
+docker compose -f infrastructure/docker/docker-compose.yml up -d
+```
+
+Install dependencies and prepare Prisma:
+
+```sh
+npm install
+npm run db:generate
+npm --workspace @civik/db run db:migrate -- --name init
+```
+
+Run the active V1 services:
+
+```sh
+npm run dev:api
+npm run dev:web
+npm run dev:mobile
+```
+
+Default local URLs:
+
+- API: `http://localhost:3000`
+- Web dashboard: `http://localhost:3001`
+- Mobile API env: `EXPO_PUBLIC_API_URL`
+
 ## Resilience Principles
 
 Every write endpoint should support:

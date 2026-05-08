@@ -1,0 +1,114 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String      @id @default(cuid())
+  email      String?     @unique
+  name       String?
+  devices    Device[]
+  trips      Trip[]
+  roadEvents RoadEvent[]
+  idempotencyKeys IdempotencyKey[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+}
+
+model Device {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform  String?
+  model     String?
+  trips     Trip[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Trip {
+  id         String      @id @default(cuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId   String?
+  device     Device?     @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  roadEvents RoadEvent[]
+  startedAt  DateTime    @default(now())
+  endedAt    DateTime?
+  startLat   Float?
+  startLng   Float?
+  endLat     Float?
+  endLng     Float?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@index([userId])
+  @@index([startedAt])
+}
+
+model RoadEvent {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tripId         String?
+  trip           Trip?     @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  type           EventType
+  lat            Float
+  lng            Float
+  speedMph       Float?
+  accuracyMeters Float?
+  source         Source    @default(MANUAL)
+  severity       Severity  @default(MEDIUM)
+  confidence     Float     @default(1)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([tripId])
+  @@index([type])
+  @@index([lat, lng])
+  @@index([createdAt])
+}
+
+model IdempotencyKey {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  route     String
+  key       String
+  response  Json
+  createdAt DateTime @default(now())
+
+  @@unique([userId, route, key])
+  @@index([createdAt])
+}
+
+enum EventType {
+  POTHOLE                @map("pothole")
+  DEBRIS                 @map("debris")
+  HARD_BRAKE             @map("hard_brake")
+  CRASH                  @map("crash")
+  RECKLESS_DRIVER        @map("reckless_driver")
+  FLOODING               @map("flooding")
+  DANGEROUS_INTERSECTION @map("dangerous_intersection")
+  ROAD_OBSTRUCTION       @map("road_obstruction")
+}
+
+enum Severity {
+  LOW      @map("low")
+  MEDIUM   @map("medium")
+  HIGH     @map("high")
+  CRITICAL @map("critical")
+}
+
+enum Source {
+  MANUAL @map("manual")
+  SENSOR @map("sensor")
+  ML     @map("ml")
+}

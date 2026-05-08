@@ -10,7 +10,13 @@
   ],
   "scripts": {
     "build": "turbo run build",
+    "db:generate": "npm --workspace @civik/db run db:generate",
+    "db:migrate": "npm --workspace @civik/db run db:migrate",
+    "db:studio": "npm --workspace @civik/db run db:studio",
     "dev": "turbo run dev",
+    "dev:api": "npm --workspace @civik/api run dev",
+    "dev:mobile": "npm --workspace @civik/mobile run dev",
+    "dev:web": "npm --workspace @civik/web run dev",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck"
   },
