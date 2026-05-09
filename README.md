@@ -214,6 +214,23 @@ User taps Record
 -> dashboard shows event on map
 ```
 
+## Mobile Resilience Direction
+
+The driver app should protect trip state first, then add media capture on top.
+
+Current mobile behavior:
+
+- active Trip state is persisted locally on the phone
+- manual RoadEvent reports can be queued locally if upload fails
+- queued reports retry when the app becomes active again
+
+Future video behavior:
+
+- camera footage should use short rolling local segments, not one giant file
+- if the driver switches apps or the OS interrupts capture, Civik should keep the last completed segment
+- older footage can expire by retention policy, but recent evidence around a RoadEvent should be preserved
+- uploads should happen in the background queue after metadata is safely stored
+
 ## Local Development
 
 Copy the example environment file once:
