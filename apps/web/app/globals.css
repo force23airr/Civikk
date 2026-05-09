@@ -82,7 +82,51 @@ h1 {
   background: #ffffff;
   border: 1px solid #dce3e8;
   border-radius: 8px;
+  margin-top: 20px;
   overflow-x: auto;
+}
+
+.map-section {
+  background: #ffffff;
+  border: 1px solid #dce3e8;
+  border-radius: 8px;
+  height: 480px;
+  overflow: hidden;
+}
+
+.road-events-map {
+  height: 100%;
+  min-height: 480px;
+  width: 100%;
+}
+
+.map-loading,
+.loading-panel {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #dce3e8;
+  border-radius: 8px;
+  color: #51606a;
+  display: flex;
+  min-height: 180px;
+  padding: 24px;
+}
+
+.map-popup {
+  display: grid;
+  gap: 4px;
+  min-width: 180px;
+}
+
+.map-popup strong {
+  color: #172026;
+  font-size: 14px;
+  text-transform: capitalize;
+}
+
+.map-popup span {
+  color: #51606a;
+  font-size: 12px;
 }
 
 table {
@@ -152,5 +196,11 @@ tr:last-child td {
 
   .stat {
     min-width: 0;
+  }
+
+  .map-section,
+  .road-events-map {
+    height: 360px;
+    min-height: 360px;
   }
 }
