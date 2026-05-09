@@ -145,9 +145,10 @@ PATCH /api/road-events/:eventId/confirm
 ### Media
 
 ```http
-POST /api/media/presign-upload
-POST /api/media/complete-upload
-GET  /api/media/:mediaId
+POST /api/media/clips
+GET  /api/media/clips/:clipId
+POST /api/media/clips/:clipId/complete
+GET  /api/trips/:tripId/media-clips
 ```
 
 ### Alerts
@@ -223,6 +224,13 @@ Current mobile behavior:
 - active Trip state is persisted locally on the phone
 - manual RoadEvent reports can be queued locally if upload fails
 - queued reports retry when the app becomes active again
+
+Media foundation:
+
+- `MediaClip` metadata belongs to a Trip
+- clips can optionally attach to a RoadEvent
+- clips start as `pending_upload`
+- the API returns a storage placeholder until S3-compatible storage is configured
 
 Future video behavior:
 

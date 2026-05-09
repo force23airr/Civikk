@@ -1,5 +1,7 @@
 import type {
   EventType,
+  MediaClip,
+  MediaClipStatus,
   RoadEvent,
   Severity,
   Source,
@@ -7,6 +9,7 @@ import type {
 } from "@civik/types";
 import {
   EventType as DbEventType,
+  MediaClipStatus as DbMediaClipStatus,
   Severity as DbSeverity,
   Source as DbSource
 } from "@civik/db";
@@ -59,6 +62,18 @@ export const fromDbSource: Record<DbSource, Source> = {
   [DbSource.ML]: "ml"
 };
 
+export const toDbMediaClipStatus: Record<MediaClipStatus, DbMediaClipStatus> = {
+  pending_upload: DbMediaClipStatus.PENDING_UPLOAD,
+  uploaded: DbMediaClipStatus.UPLOADED,
+  failed: DbMediaClipStatus.FAILED
+};
+
+export const fromDbMediaClipStatus: Record<DbMediaClipStatus, MediaClipStatus> = {
+  [DbMediaClipStatus.PENDING_UPLOAD]: "pending_upload",
+  [DbMediaClipStatus.UPLOADED]: "uploaded",
+  [DbMediaClipStatus.FAILED]: "failed"
+};
+
 export function serializeTrip(trip: {
   id: string;
   userId: string;
@@ -103,5 +118,31 @@ export function serializeRoadEvent(event: {
     severity: fromDbSeverity[event.severity],
     createdAt: event.createdAt.toISOString(),
     updatedAt: event.updatedAt.toISOString()
+  };
+}
+
+export function serializeMediaClip(clip: {
+  id: string;
+  userId: string;
+  tripId: string;
+  roadEventId: string | null;
+  status: DbMediaClipStatus;
+  localUri: string | null;
+  storageKey: string | null;
+  mimeType: string;
+  durationSeconds: number | null;
+  sizeBytes: number | null;
+  startedAt: Date | null;
+  endedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}): MediaClip {
+  return {
+    ...clip,
+    status: fromDbMediaClipStatus[clip.status],
+    startedAt: clip.startedAt?.toISOString() ?? null,
+    endedAt: clip.endedAt?.toISOString() ?? null,
+    createdAt: clip.createdAt.toISOString(),
+    updatedAt: clip.updatedAt.toISOString()
   };
 }

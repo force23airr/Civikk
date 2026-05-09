@@ -9,10 +9,16 @@ config({ path: new URL("../../../.env", import.meta.url).pathname });
 const PLACEHOLDER_USER_ID = "dev_user";
 
 export async function buildServer() {
-  const [{ prisma }, { healthRoutes }, { roadEventRoutes }, { tripRoutes }] =
-    await Promise.all([
+  const [
+    { prisma },
+    { healthRoutes },
+    { mediaRoutes },
+    { roadEventRoutes },
+    { tripRoutes }
+  ] = await Promise.all([
       import("@civik/db"),
       import("./routes/health"),
+      import("./routes/media"),
       import("./routes/road-events"),
       import("./routes/trips")
     ]);
@@ -67,6 +73,7 @@ export async function buildServer() {
   await app.register(healthRoutes);
   await app.register(tripRoutes);
   await app.register(roadEventRoutes);
+  await app.register(mediaRoutes);
 
   return app;
 }

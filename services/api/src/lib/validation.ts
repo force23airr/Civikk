@@ -35,3 +35,21 @@ export const nearbyQuerySchema = z.object({
   lng: z.coerce.number().min(-180).max(180),
   radiusMiles: z.coerce.number().positive().max(100).default(5)
 });
+
+export const createMediaClipSchema = z.object({
+  tripId: z.string().min(1),
+  roadEventId: z.string().min(1).optional(),
+  localUri: z.string().min(1).optional(),
+  mimeType: z.string().min(1).default("video/mp4"),
+  durationSeconds: z.number().positive().optional(),
+  sizeBytes: z.number().int().positive().optional(),
+  startedAt: z.string().datetime().optional(),
+  endedAt: z.string().datetime().optional(),
+  idempotencyKey: z.string().min(1).optional()
+});
+
+export const completeMediaClipSchema = z.object({
+  storageKey: z.string().min(1),
+  sizeBytes: z.number().int().positive().optional(),
+  idempotencyKey: z.string().min(1).optional()
+});

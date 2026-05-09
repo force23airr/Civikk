@@ -13,9 +13,16 @@ export const severities = ["low", "medium", "high", "critical"] as const;
 
 export const sources = ["manual", "sensor", "ml"] as const;
 
+export const mediaClipStatuses = [
+  "pending_upload",
+  "uploaded",
+  "failed"
+] as const;
+
 export type EventType = (typeof eventTypes)[number];
 export type Severity = (typeof severities)[number];
 export type Source = (typeof sources)[number];
+export type MediaClipStatus = (typeof mediaClipStatuses)[number];
 
 export interface Trip {
   id: string;
@@ -27,6 +34,23 @@ export interface Trip {
   startLng?: number | null;
   endLat?: number | null;
   endLng?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MediaClip {
+  id: string;
+  userId: string;
+  tripId: string;
+  roadEventId?: string | null;
+  status: MediaClipStatus;
+  localUri?: string | null;
+  storageKey?: string | null;
+  mimeType: string;
+  durationSeconds?: number | null;
+  sizeBytes?: number | null;
+  startedAt?: string | null;
+  endedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -84,4 +108,20 @@ export interface CreateRoadEventInput {
   source?: Source;
   severity?: Severity;
   confidence?: number;
+}
+
+export interface CreateMediaClipInput {
+  tripId: string;
+  roadEventId?: string;
+  localUri?: string;
+  mimeType?: string;
+  durationSeconds?: number;
+  sizeBytes?: number;
+  startedAt?: string;
+  endedAt?: string;
+}
+
+export interface CompleteMediaClipInput {
+  storageKey: string;
+  sizeBytes?: number;
 }

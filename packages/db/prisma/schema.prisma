@@ -14,6 +14,7 @@ model User {
   devices    Device[]
   trips      Trip[]
   roadEvents RoadEvent[]
+  mediaClips MediaClip[]
   idempotencyKeys IdempotencyKey[]
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
@@ -39,6 +40,7 @@ model Trip {
   deviceId   String?
   device     Device?     @relation(fields: [deviceId], references: [id], onDelete: SetNull)
   roadEvents RoadEvent[]
+  mediaClips MediaClip[]
   startedAt  DateTime    @default(now())
   endedAt    DateTime?
   startLat   Float?
@@ -58,6 +60,7 @@ model RoadEvent {
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   tripId         String?
   trip           Trip?     @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  mediaClips     MediaClip[]
   type           EventType
   lat            Float
   lng            Float
@@ -73,6 +76,32 @@ model RoadEvent {
   @@index([tripId])
   @@index([type])
   @@index([lat, lng])
+  @@index([createdAt])
+}
+
+model MediaClip {
+  id              String          @id @default(cuid())
+  userId          String
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tripId          String
+  trip            Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  roadEventId     String?
+  roadEvent       RoadEvent?      @relation(fields: [roadEventId], references: [id], onDelete: SetNull)
+  status          MediaClipStatus @default(PENDING_UPLOAD)
+  localUri        String?
+  storageKey      String?
+  mimeType        String          @default("video/mp4")
+  durationSeconds Float?
+  sizeBytes       Int?
+  startedAt       DateTime?
+  endedAt         DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([userId])
+  @@index([tripId])
+  @@index([roadEventId])
+  @@index([status])
   @@index([createdAt])
 }
 
@@ -111,4 +140,10 @@ enum Source {
   MANUAL @map("manual")
   SENSOR @map("sensor")
   ML     @map("ml")
+}
+
+enum MediaClipStatus {
+  PENDING_UPLOAD @map("pending_upload")
+  UPLOADED       @map("uploaded")
+  FAILED         @map("failed")
 }
