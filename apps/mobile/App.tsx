@@ -1,5 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
+import * as FileSystem from "expo-file-system";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   AppState,
@@ -12,11 +14,13 @@ import {
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import * as Location from "expo-location";
-import type { EventType, RoadEvent, Trip } from "@civik/types";
+import type { EventType, MediaClip, RoadEvent, Trip } from "@civik/types";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
 const ACTIVE_TRIP_STORAGE_KEY = "civik.activeTrip";
 const PENDING_EVENTS_STORAGE_KEY = "civik.pendingRoadEvents";
+const ROLLING_CLIP_SECONDS = 30;
+const CLIP_DIRECTORY = `${FileSystem.documentDirectory ?? ""}civik-clips/`;
 
 type ApiStatus = {
   message: string;
@@ -40,6 +44,12 @@ type PendingRoadEvent = {
   idempotencyKey: string;
   payload: RoadEventPayload;
   createdAt: string;
+};
+
+type ClipCapture = {
+  startedAt: string;
+  endedAt: string;
+  uri: string;
 };
 
 function makeIdempotencyKey(action: string) {
@@ -112,11 +122,42 @@ async function savePendingEvents(events: PendingRoadEvent[]) {
   await AsyncStorage.setItem(PENDING_EVENTS_STORAGE_KEY, JSON.stringify(events));
 }
 
+async function persistClipFile(uri: string) {
+  if (!FileSystem.documentDirectory) {
+    return uri;
+  }
+
+  await FileSystem.makeDirectoryAsync(CLIP_DIRECTORY, { intermediates: true });
+  const extension = uri.split(".").pop()?.split("?")[0] || "mp4";
+  const destination = `${CLIP_DIRECTORY}${Date.now()}-${Math.random()
+    .toString(16)
+    .slice(2)}.${extension}`;
+
+  await FileSystem.copyAsync({
+    from: uri,
+    to: destination
+  });
+
+  return destination;
+}
+
 export default function App() {
+  const cameraRef = useRef<CameraView | null>(null);
+  const activeTripRef = useRef<Trip | null>(null);
+  const recordingPromiseRef = useRef<Promise<{ uri: string } | undefined> | null>(
+    null
+  );
+  const shouldContinueRecordingRef = useRef(false);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const [microphonePermission, requestMicrophonePermission] =
+    useMicrophonePermissions();
   const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
   const [lastEvent, setLastEvent] = useState<RoadEvent | null>(null);
+  const [lastClip, setLastClip] = useState<MediaClip | null>(null);
   const [pendingEvents, setPendingEvents] = useState<PendingRoadEvent[]>([]);
   const [isBusy, setIsBusy] = useState(false);
+  const [isCameraReady, setIsCameraReady] = useState(false);
+  const [isCapturingVideo, setIsCapturingVideo] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [status, setStatus] = useState<ApiStatus>({
     message: "Loading trip state.",
@@ -128,7 +169,11 @@ export default function App() {
     [activeTrip]
   );
 
+  const hasCameraAccess =
+    cameraPermission?.granted === true && microphonePermission?.granted === true;
+
   const persistActiveTrip = useCallback(async (trip: Trip | null) => {
+    activeTripRef.current = trip;
     setActiveTrip(trip);
     await saveActiveTrip(trip);
   }, []);
@@ -198,6 +243,7 @@ export default function App() {
           return;
         }
 
+        activeTripRef.current = storedTrip;
         setActiveTrip(storedTrip);
         setPendingEvents(storedEvents);
         setStatus({
@@ -223,25 +269,177 @@ export default function App() {
     };
   }, [syncPendingEvents]);
 
+  async function requestRecordingPermissions() {
+    const [camera, microphone] = await Promise.all([
+      cameraPermission?.granted
+        ? Promise.resolve(cameraPermission)
+        : requestCameraPermission(),
+      microphonePermission?.granted
+        ? Promise.resolve(microphonePermission)
+        : requestMicrophonePermission()
+    ]);
+
+    if (!camera.granted || !microphone.granted) {
+      throw new Error("Camera and microphone permissions are required for footage.");
+    }
+  }
+
+  async function createMediaClip(tripId: string, clip: ClipCapture) {
+    const localUri = await persistClipFile(clip.uri);
+    const durationSeconds =
+      (new Date(clip.endedAt).getTime() - new Date(clip.startedAt).getTime()) /
+      1000;
+
+    const data = await postJson<{ mediaClip: MediaClip }>("/api/media/clips", {
+      tripId,
+      localUri,
+      mimeType: "video/mp4",
+      durationSeconds: Math.max(1, Math.round(durationSeconds)),
+      startedAt: clip.startedAt,
+      endedAt: clip.endedAt
+    });
+
+    setLastClip(data.mediaClip);
+    return data.mediaClip;
+  }
+
+  const startVideoCapture = useCallback(async (tripId: string) => {
+    if (!cameraRef.current || !isCameraReady || isCapturingVideo) {
+      if (!cameraRef.current || !isCameraReady) {
+        throw new Error("Camera is still getting ready.");
+      }
+
+      return;
+    }
+
+    shouldContinueRecordingRef.current = true;
+    const startedAt = new Date().toISOString();
+    setIsCapturingVideo(true);
+
+    const recordingPromise = cameraRef.current.recordAsync({
+      maxDuration: ROLLING_CLIP_SECONDS
+    });
+
+    recordingPromiseRef.current = recordingPromise;
+    recordingPromise
+      .then(async (video) => {
+        if (!video?.uri) {
+          return;
+        }
+
+        await createMediaClip(tripId, {
+          startedAt,
+          endedAt: new Date().toISOString(),
+          uri: video.uri
+        });
+      })
+      .catch((error) => {
+        setStatus({
+          message:
+            error instanceof Error ? error.message : "Could not save video clip.",
+          tone: "error"
+        });
+      })
+      .finally(() => {
+        recordingPromiseRef.current = null;
+        setIsCapturingVideo(false);
+
+        if (
+          shouldContinueRecordingRef.current &&
+          activeTripRef.current?.id === tripId &&
+          !activeTripRef.current.endedAt
+        ) {
+          setTimeout(() => {
+            void startVideoCapture(tripId).catch((error) => {
+              setStatus({
+                message:
+                  error instanceof Error
+                    ? error.message
+                    : "Could not continue video capture.",
+                tone: "error"
+              });
+            });
+          }, 250);
+        }
+      });
+  }, [isCameraReady, isCapturingVideo]);
+
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
       if (nextState === "active") {
         void syncPendingEvents();
+
+        if (
+          activeTripRef.current &&
+          !activeTripRef.current.endedAt &&
+          hasCameraAccess &&
+          isCameraReady &&
+          !isCapturingVideo
+        ) {
+          void startVideoCapture(activeTripRef.current.id).catch((error) => {
+            setStatus({
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "Could not resume video capture.",
+              tone: "error"
+            });
+          });
+        }
       }
     });
 
     return () => {
       subscription.remove();
     };
-  }, [syncPendingEvents]);
+  }, [
+    hasCameraAccess,
+    isCameraReady,
+    isCapturingVideo,
+    startVideoCapture,
+    syncPendingEvents
+  ]);
+
+  async function enableCameraAccess() {
+    try {
+      await requestRecordingPermissions();
+      setStatus({
+        message: "Camera readying. You can start recording once preview loads.",
+        tone: "idle"
+      });
+    } catch (error) {
+      setStatus({
+        message:
+          error instanceof Error ? error.message : "Could not enable camera access.",
+        tone: "error"
+      });
+    }
+  }
+
+  async function stopVideoCapture() {
+    if (!recordingPromiseRef.current || !isCapturingVideo) {
+      shouldContinueRecordingRef.current = false;
+      return;
+    }
+
+    shouldContinueRecordingRef.current = false;
+    cameraRef.current?.stopRecording();
+    await recordingPromiseRef.current.catch(() => undefined);
+  }
 
   async function startTrip() {
     setIsBusy(true);
     try {
+      await requestRecordingPermissions();
+      if (!cameraRef.current || !isCameraReady) {
+        throw new Error("Camera is still getting ready.");
+      }
+
       const coordinates = await getCurrentCoordinates();
       const data = await postJson<{ trip: Trip }>("/api/trips/start", coordinates);
       await persistActiveTrip(data.trip);
-      setStatus({ message: "Trip started.", tone: "success" });
+      await startVideoCapture(data.trip.id);
+      setStatus({ message: "Trip started with camera capture.", tone: "success" });
     } catch (error) {
       setStatus({
         message: error instanceof Error ? error.message : "Could not start trip.",
@@ -259,6 +457,7 @@ export default function App() {
 
     setIsBusy(true);
     try {
+      await stopVideoCapture();
       const coordinates = await getCurrentCoordinates();
       const data = await postJson<{ trip: Trip }>(
         `/api/trips/${activeTrip.id}/end`,
@@ -359,15 +558,48 @@ export default function App() {
           <Text style={styles.title}>Civik Drive</Text>
           <Text style={styles.subtitle}>
             {isRecording
-              ? "Trip state is saved on this phone if the app is interrupted."
+              ? "Trip state and completed clips are preserved if the app is interrupted."
               : "Trip recording and manual road reports."}
           </Text>
+        </View>
+
+        <View style={styles.cameraPanel}>
+          {hasCameraAccess ? (
+            <CameraView
+              facing="back"
+              mode="video"
+              onCameraReady={() => setIsCameraReady(true)}
+              ref={cameraRef}
+              style={styles.cameraPreview}
+            />
+          ) : (
+            <View style={styles.cameraFallback}>
+              <Text style={styles.cameraFallbackTitle}>Camera access needed</Text>
+              <Text style={styles.meta}>
+                Civik needs camera and microphone permissions before trip footage can
+                be captured.
+              </Text>
+              <Pressable
+                onPress={enableCameraAccess}
+                style={({ pressed }) => [
+                  styles.permissionButton,
+                  pressed && styles.buttonDisabled
+                ]}
+              >
+                <Text style={styles.permissionButtonText}>Enable Camera</Text>
+              </Pressable>
+            </View>
+          )}
         </View>
 
         <View style={styles.statusPanel}>
           <View style={styles.statusHeader}>
             <Text style={styles.label}>Status</Text>
-            {isRecording ? <Text style={styles.recordingPill}>Recording</Text> : null}
+            {isCapturingVideo ? (
+              <Text style={styles.recordingPill}>Capturing</Text>
+            ) : isRecording ? (
+              <Text style={styles.recordingPill}>Trip Active</Text>
+            ) : null}
           </View>
           <Text style={[styles.statusText, styles[status.tone]]}>
             {status.message}
@@ -389,16 +621,26 @@ export default function App() {
           {lastEvent ? (
             <Text style={styles.meta}>Last event: {lastEvent.type}</Text>
           ) : null}
+          {lastClip ? (
+            <Text style={styles.meta}>
+              Last clip: {lastClip.status} ({lastClip.durationSeconds ?? 0}s)
+            </Text>
+          ) : null}
         </View>
 
         <View style={styles.actions}>
           <Pressable
-            disabled={isBusy || isRecording}
+            disabled={isBusy || isRecording || !hasCameraAccess || !isCameraReady}
             onPress={startTrip}
             style={({ pressed }) => [
               styles.button,
               styles.primaryButton,
-              (pressed || isBusy || isRecording) && styles.buttonDisabled
+              (pressed ||
+                isBusy ||
+                isRecording ||
+                !hasCameraAccess ||
+                !isCameraReady) &&
+                styles.buttonDisabled
             ]}
           >
             <Text style={styles.primaryButtonText}>Record</Text>
@@ -416,6 +658,10 @@ export default function App() {
             <Text style={styles.secondaryButtonText}>Stop Recording</Text>
           </Pressable>
         </View>
+
+        {hasCameraAccess && !isCameraReady ? (
+          <Text style={styles.meta}>Camera is warming up.</Text>
+        ) : null}
 
         <View style={styles.reportGrid}>
           <Pressable
@@ -512,6 +758,41 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: 8,
     padding: 16
+  },
+  cameraPanel: {
+    backgroundColor: "#ffffff",
+    borderColor: "#dce3e8",
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 260,
+    overflow: "hidden"
+  },
+  cameraPreview: {
+    flex: 1
+  },
+  cameraFallback: {
+    flex: 1,
+    gap: 12,
+    justifyContent: "center",
+    padding: 16
+  },
+  cameraFallbackTitle: {
+    color: "#172026",
+    fontSize: 18,
+    fontWeight: "800"
+  },
+  permissionButton: {
+    alignItems: "center",
+    backgroundColor: "#172026",
+    borderRadius: 8,
+    minHeight: 46,
+    justifyContent: "center",
+    paddingHorizontal: 16
+  },
+  permissionButtonText: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "800"
   },
   statusHeader: {
     alignItems: "center",

@@ -10,6 +10,16 @@
     "runtimeVersion": {
       "policy": "appVersion"
     },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Civik uses the camera to capture trip footage while you record a drive.",
+          "microphonePermission": "Civik uses the microphone to include audio in trip footage.",
+          "recordAudioAndroid": true
+        }
+      ]
+    ],
     "updates": {
       "url": "https://u.expo.dev/00000000-0000-0000-0000-000000000000"
     },
@@ -17,7 +27,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.civik.mobile",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Civik uses your location to attach GPS coordinates to trips and road events."
+        "NSCameraUsageDescription": "Civik uses the camera to capture trip footage while you record a drive.",
+        "NSLocationWhenInUseUsageDescription": "Civik uses your location to attach GPS coordinates to trips and road events.",
+        "NSMicrophoneUsageDescription": "Civik uses the microphone to include audio in trip footage."
       }
     },
     "android": {

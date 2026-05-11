@@ -224,6 +224,8 @@ Current mobile behavior:
 - active Trip state is persisted locally on the phone
 - manual RoadEvent reports can be queued locally if upload fails
 - queued reports retry when the app becomes active again
+- Record starts camera capture after camera and microphone permissions are granted
+- completed video clips are copied into the app document directory before metadata is created
 
 Media foundation:
 
@@ -238,6 +240,7 @@ Future video behavior:
 - if the driver switches apps or the OS interrupts capture, Civik should keep the last completed segment
 - older footage can expire by retention policy, but recent evidence around a RoadEvent should be preserved
 - uploads should happen in the background queue after metadata is safely stored
+- clips should later attach automatically to RoadEvents using a before/after evidence window
 
 ## Local Development
 
