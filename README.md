@@ -10,6 +10,21 @@ Civik is not just a dash cam app.
 
 It is a mobile sensing network where every participating vehicle becomes a data point for safer roads, smarter cities, fleet safety, and infrastructure intelligence.
 
+### Fleet and Operator Use Cases
+
+Civik runs on the phone a driver is already using, so it extends beyond individual drivers to fleets and other operating entities:
+
+- delivery, rideshare, and logistics fleets
+- elderly and assisted-living transport vehicles
+- municipal and contractor vehicles already on the road
+
+For these operators the value is multi-party and low-friction:
+
+- drivers get a passive trip and incident record (useful for insurance and dispute resolution)
+- operators get fleet safety visibility and evidence around reported events
+- cities and infrastructure owners get denser, real-time roadway data
+- nothing new to install in the vehicle — it is the driver's existing phone
+
 ## Core V1
 
 The first version focuses on basic but reliable functionality:
