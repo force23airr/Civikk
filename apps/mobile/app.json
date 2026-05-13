@@ -2,7 +2,7 @@
   "expo": {
     "name": "Civik",
     "slug": "civik",
-    "owner": "force23airr",
+    "owner": "angelfdz03",
     "version": "0.1.0",
     "orientation": "portrait",
     "scheme": "civik",
@@ -20,26 +20,32 @@
         }
       ]
     ],
-    "updates": {
-      "url": "https://u.expo.dev/00000000-0000-0000-0000-000000000000"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.civik.mobile",
       "infoPlist": {
         "NSCameraUsageDescription": "Civik uses the camera to capture trip footage while you record a drive.",
         "NSLocationWhenInUseUsageDescription": "Civik uses your location to attach GPS coordinates to trips and road events.",
-        "NSMicrophoneUsageDescription": "Civik uses the microphone to include audio in trip footage."
+        "NSMicrophoneUsageDescription": "Civik uses the microphone to include audio in trip footage.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "package": "com.civik.mobile",
-      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"]
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "extra": {
       "eas": {
-        "projectId": "00000000-0000-0000-0000-000000000000"
+        "projectId": "992d763c-8a35-4cfb-afbc-d6bfdb6a3c0f"
       }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/992d763c-8a35-4cfb-afbc-d6bfdb6a3c0f"
     }
   }
 }
