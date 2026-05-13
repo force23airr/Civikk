@@ -133,6 +133,10 @@ export function serializeMediaClip(clip: {
   mimeType: string;
   durationSeconds: number | null;
   sizeBytes: number | null;
+  lat: number | null;
+  lng: number | null;
+  accuracyMeters: number | null;
+  speedMph: number | null;
   startedAt: Date | null;
   endedAt: Date | null;
   createdAt: Date;

@@ -55,6 +55,10 @@ export interface MediaClip {
   mimeType: string;
   durationSeconds?: number | null;
   sizeBytes?: number | null;
+  lat?: number | null;
+  lng?: number | null;
+  accuracyMeters?: number | null;
+  speedMph?: number | null;
   startedAt?: string | null;
   endedAt?: string | null;
   createdAt: string;
@@ -123,6 +127,10 @@ export interface CreateMediaClipInput {
   mimeType?: string;
   durationSeconds?: number;
   sizeBytes?: number;
+  lat?: number;
+  lng?: number;
+  accuracyMeters?: number;
+  speedMph?: number;
   startedAt?: string;
   endedAt?: string;
 }

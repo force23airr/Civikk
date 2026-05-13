@@ -94,6 +94,10 @@ model MediaClip {
   mimeType        String          @default("video/mp4")
   durationSeconds Float?
   sizeBytes       Int?
+  lat             Float?
+  lng             Float?
+  accuracyMeters  Float?
+  speedMph        Float?
   startedAt       DateTime?
   endedAt         DateTime?
   createdAt       DateTime        @default(now())
@@ -104,6 +108,7 @@ model MediaClip {
   @@index([roadEventId])
   @@index([status])
   @@index([createdAt])
+  @@index([lat, lng])
 }
 
 model IdempotencyKey {

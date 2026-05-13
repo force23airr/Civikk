@@ -43,6 +43,10 @@ export const createMediaClipSchema = z.object({
   mimeType: z.string().min(1).default("video/mp4"),
   durationSeconds: z.number().positive().optional(),
   sizeBytes: z.number().int().positive().optional(),
+  lat: latSchema.optional(),
+  lng: lngSchema.optional(),
+  accuracyMeters: z.number().min(0).optional(),
+  speedMph: z.number().min(0).optional(),
   startedAt: z.string().datetime().optional(),
   endedAt: z.string().datetime().optional(),
   idempotencyKey: z.string().min(1).optional()

@@ -37,6 +37,7 @@ in code; the rest are direction.
 | Offline event queue | ✅ | Failed reports queue locally with stable idempotency keys; auto-retry on app foreground |
 | Camera trip capture | ✅ | Rolling ~30s video segments while a trip is active; resumes on foreground |
 | Local clip storage | ✅ | Completed clips copied to app document directory before metadata is sent |
+| Clip location stamp | ✅ | Every clip captures lat/lng + accuracy + speed at clip end; safe-fails if GPS unavailable |
 | Trip history view | ✅ | Modal on the main screen lists recent trips with clip and event counts |
 | Tap a trip to see its clips and play them back | ✅ | Uses `expo-video` against each clip's `localUri` on the device |
 | Rename a clip | ✅ | Inline modal with `TextInput` (works on iOS + Android); name persists via `PATCH /api/media/clips/:id` |

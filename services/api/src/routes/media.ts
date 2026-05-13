@@ -25,6 +25,10 @@ export async function mediaRoutes(app: FastifyInstance) {
           mimeType: body.mimeType,
           durationSeconds: body.durationSeconds,
           sizeBytes: body.sizeBytes,
+          lat: body.lat,
+          lng: body.lng,
+          accuracyMeters: body.accuracyMeters,
+          speedMph: body.speedMph,
           startedAt: body.startedAt ? new Date(body.startedAt) : undefined,
           endedAt: body.endedAt ? new Date(body.endedAt) : undefined
         }

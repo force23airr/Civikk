@@ -344,13 +344,18 @@ export default function App() {
       (new Date(clip.endedAt).getTime() - new Date(clip.startedAt).getTime()) /
       1000;
 
+    // Capture GPS at clip end so the clip is self-contained evidence.
+    // Never block the metadata save on a GPS hiccup.
+    const coordinates = await getCurrentCoordinates().catch(() => null);
+
     const data = await postJson<{ mediaClip: MediaClip }>("/api/media/clips", {
       tripId,
       localUri,
       mimeType: "video/mp4",
       durationSeconds: Math.max(1, Math.round(durationSeconds)),
       startedAt: clip.startedAt,
-      endedAt: clip.endedAt
+      endedAt: clip.endedAt,
+      ...(coordinates ?? {})
     });
 
     setLastClip(data.mediaClip);
@@ -1122,6 +1127,11 @@ export default function App() {
                       <Text style={styles.meta}>
                         {Math.round(item.durationSeconds ?? 0)}s • {item.status}
                       </Text>
+                      {item.lat != null && item.lng != null ? (
+                        <Text style={styles.meta}>
+                          📍 {item.lat.toFixed(5)}, {item.lng.toFixed(5)}
+                        </Text>
+                      ) : null}
                       <Text style={styles.clipCardCta}>
                         {hasPlayableUri
                           ? "Tap to play"
