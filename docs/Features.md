@@ -37,6 +37,7 @@ in code; the rest are direction.
 | Offline event queue | ✅ | Failed reports queue locally with stable idempotency keys; auto-retry on app foreground |
 | Camera trip capture | ✅ | Rolling ~30s video segments while a trip is active; resumes on foreground |
 | Local clip storage | ✅ | Completed clips copied to app document directory before metadata is sent |
+| Trip history view | ✅ | Modal on the main screen lists recent trips with clip and event counts |
 | Offline clip-metadata queue | ⬜ | Not yet — clip file is saved but metadata POST is not queued if offline |
 | Clip retention / cleanup | ⬜ | Not yet — old clips are never deleted |
 | Auto-attach clips to road events (before/after window) | ⬜ | Direction |
@@ -59,7 +60,7 @@ Fastify + Prisma. Idempotent writes via `idempotency-key` header.
 | Area | Endpoints | Status |
 | --- | --- | --- |
 | Health | `GET /health` | ✅ |
-| Trips | `POST /api/trips/start`, `POST /api/trips/:id/end` | ✅ |
+| Trips | `GET /api/trips`, `POST /api/trips/start`, `POST /api/trips/:id/end` | ✅ |
 | Road events | `POST /api/road-events`, `GET /api/road-events`, nearby query | ✅ |
 | Media clips | `POST /api/media/clips`, `GET /api/trips/:tripId/media-clips`, `GET /api/media/clips/:clipId`, `POST /api/media/clips/:clipId/complete` | ✅ (storage provider stubbed) |
 | Real object storage / presigned uploads | — | ⬜ `createPresignPlaceholder` is a stub |
@@ -93,6 +94,29 @@ docs/               This doc and other product/architecture notes
 - **Individual drivers** — passive trip + incident record, useful for insurance and disputes
 - **Fleets / operators** (logistics, rideshare, assisted-living transport, municipal/contractor) — fleet safety visibility, evidence around incidents, no in-vehicle hardware
 - **Cities & infrastructure owners** — denser, real-time roadway hazard data
+
+## Future Direction — On-Device / Edge AI Inference
+
+The trip footage Civik collects is proprietary roadway data. Running inference on
+that footage turns raw clips into structured road intelligence (pothole locations,
+debris, lane-line damage, signage issues, near-miss detection) that nobody else
+has at this density.
+
+Path being considered:
+
+- **NVIDIA Jetson Orin developer kit** as the reference platform for an edge
+  inference node — either in-vehicle (fleet vehicles already wired for power) or
+  as a roadside / depot ingest box that processes uploaded clips locally.
+- Models start with off-the-shelf object detection (pothole / debris / sign /
+  vehicle) and fine-tune over time on Civik's own footage.
+- Inference output flows back as `RoadEvent` rows with `source = "ml"`, attached
+  to the originating clip via `MediaClip.roadEventId`.
+- Cloud GPU inference stays an option, but edge gives lower latency, lower
+  bandwidth cost, and keeps raw footage from leaving the operator network when
+  customers (fleets, municipalities) require that.
+
+The dataset itself — labeled road-event clips with GPS, time, severity, and
+optional cross-clip context — is a long-term asset independent of the app.
 
 ## Right Now: Getting Set Up Simply
 

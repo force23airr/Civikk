@@ -38,6 +38,11 @@ export interface Trip {
   updatedAt: string;
 }
 
+export interface TripSummary extends Trip {
+  mediaClipCount: number;
+  roadEventCount: number;
+}
+
 export interface MediaClip {
   id: string;
   userId: string;

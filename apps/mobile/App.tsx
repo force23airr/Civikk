@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   AppState,
+  FlatList,
+  Modal,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -14,7 +16,13 @@ import {
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import * as Location from "expo-location";
-import type { EventType, MediaClip, RoadEvent, Trip } from "@civik/types";
+import type {
+  EventType,
+  MediaClip,
+  RoadEvent,
+  Trip,
+  TripSummary
+} from "@civik/types";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
 const ACTIVE_TRIP_STORAGE_KEY = "civik.activeTrip";
@@ -159,6 +167,12 @@ export default function App() {
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [isCapturingVideo, setIsCapturingVideo] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [historyTrips, setHistoryTrips] = useState<TripSummary[]>([]);
+  const [historyState, setHistoryState] = useState<
+    "idle" | "loading" | "error"
+  >("idle");
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [status, setStatus] = useState<ApiStatus>({
     message: "Loading trip state.",
     tone: "idle"
@@ -539,6 +553,46 @@ export default function App() {
     await syncPendingEvents();
   }
 
+  async function openHistory() {
+    setIsHistoryOpen(true);
+    setHistoryState("loading");
+    setHistoryError(null);
+    try {
+      const response = await fetch(`${API_URL}/api/trips?limit=25`);
+      if (!response.ok) {
+        throw new Error(`API returned ${response.status}`);
+      }
+      const data = (await response.json()) as { trips: TripSummary[] };
+      setHistoryTrips(data.trips);
+      setHistoryState("idle");
+    } catch (error) {
+      setHistoryState("error");
+      setHistoryError(
+        error instanceof Error ? error.message : "Could not load history."
+      );
+    }
+  }
+
+  function formatTripRange(trip: TripSummary) {
+    const started = new Date(trip.startedAt);
+    const startLabel = started.toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit"
+    });
+    if (!trip.endedAt) {
+      return `${startLabel} — in progress`;
+    }
+    const durationMin = Math.max(
+      1,
+      Math.round(
+        (new Date(trip.endedAt).getTime() - started.getTime()) / 60000
+      )
+    );
+    return `${startLabel} — ${durationMin} min`;
+  }
+
   function tripStartedLabel() {
     if (!activeTrip) {
       return "No active trip.";
@@ -723,7 +777,88 @@ export default function App() {
             </Text>
           </View>
         ) : null}
+
+        <Pressable
+          onPress={openHistory}
+          style={({ pressed }) => [
+            styles.button,
+            styles.historyButton,
+            pressed && styles.buttonDisabled
+          ]}
+        >
+          <Text style={styles.historyButtonText}>View Trip History</Text>
+        </Pressable>
       </ScrollView>
+
+      <Modal
+        animationType="slide"
+        onRequestClose={() => setIsHistoryOpen(false)}
+        presentationStyle="pageSheet"
+        visible={isHistoryOpen}
+      >
+        <SafeAreaView style={styles.screen}>
+          <View style={styles.historyHeader}>
+            <Text style={styles.title}>Trip History</Text>
+            <Pressable onPress={() => setIsHistoryOpen(false)}>
+              <Text style={styles.historyClose}>Close</Text>
+            </Pressable>
+          </View>
+
+          {historyState === "loading" ? (
+            <View style={styles.loading}>
+              <ActivityIndicator />
+              <Text style={styles.meta}>Loading trips.</Text>
+            </View>
+          ) : null}
+
+          {historyState === "error" ? (
+            <View style={styles.historyPadding}>
+              <Text style={[styles.statusText, styles.error]}>
+                {historyError ?? "Could not load history."}
+              </Text>
+              <Pressable
+                onPress={openHistory}
+                style={({ pressed }) => [
+                  styles.button,
+                  styles.queueButton,
+                  pressed && styles.buttonDisabled
+                ]}
+              >
+                <Text style={styles.queueButtonText}>Retry</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {historyState === "idle" && historyTrips.length === 0 ? (
+            <View style={styles.historyPadding}>
+              <Text style={styles.meta}>No trips recorded yet.</Text>
+            </View>
+          ) : null}
+
+          {historyState === "idle" && historyTrips.length > 0 ? (
+            <FlatList
+              contentContainerStyle={styles.historyList}
+              data={historyTrips}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <View style={styles.historyCard}>
+                  <Text style={styles.historyCardTitle}>
+                    {formatTripRange(item)}
+                  </Text>
+                  <Text style={styles.meta}>
+                    {item.mediaClipCount} clip
+                    {item.mediaClipCount === 1 ? "" : "s"} •{" "}
+                    {item.roadEventCount} event
+                    {item.roadEventCount === 1 ? "" : "s"}
+                    {item.endedAt ? "" : "  •  active"}
+                  </Text>
+                  <Text style={styles.historyCardId}>{item.id}</Text>
+                </View>
+              )}
+            />
+          ) : null}
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -909,5 +1044,52 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     padding: 16
+  },
+  historyButton: {
+    backgroundColor: "#eef2f5",
+    borderColor: "#dce3e8",
+    borderWidth: 1
+  },
+  historyButtonText: {
+    color: "#172026",
+    fontSize: 15,
+    fontWeight: "700"
+  },
+  historyHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    padding: 16
+  },
+  historyClose: {
+    color: "#2563eb",
+    fontSize: 16,
+    fontWeight: "700"
+  },
+  historyList: {
+    gap: 12,
+    padding: 16
+  },
+  historyPadding: {
+    gap: 12,
+    padding: 16
+  },
+  historyCard: {
+    backgroundColor: "#ffffff",
+    borderColor: "#dce3e8",
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 6,
+    padding: 14
+  },
+  historyCardTitle: {
+    color: "#172026",
+    fontSize: 16,
+    fontWeight: "700"
+  },
+  historyCardId: {
+    color: "#6b7886",
+    fontFamily: "Courier",
+    fontSize: 11
   }
 });
