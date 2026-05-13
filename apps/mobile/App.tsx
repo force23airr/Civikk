@@ -183,6 +183,14 @@ export default function App() {
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [isCapturingVideo, setIsCapturingVideo] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isCameraMode, setIsCameraMode] = useState(false);
+  const [liveClock, setLiveClock] = useState(() => new Date());
+  const [liveLocation, setLiveLocation] = useState<{
+    lat: number;
+    lng: number;
+    accuracyMeters: number | null;
+    speedMph: number | null;
+  } | null>(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [selectedHistoryTrip, setSelectedHistoryTrip] =
     useState<TripSummary | null>(null);
@@ -222,6 +230,66 @@ export default function App() {
     }, REMINDER_INTERVAL_MS);
     return () => clearInterval(handle);
   }, [isRecording]);
+
+  // Live ticking clock only when camera mode is open.
+  useEffect(() => {
+    if (!isCameraMode) return;
+    const handle = setInterval(() => setLiveClock(new Date()), 1000);
+    return () => clearInterval(handle);
+  }, [isCameraMode]);
+
+  // Live GPS stream only when camera mode is open and we have permission.
+  useEffect(() => {
+    if (!isCameraMode) {
+      setLiveLocation(null);
+      return;
+    }
+    let subscription: Location.LocationSubscription | null = null;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { status } = await Location.getForegroundPermissionsAsync();
+        if (status !== "granted") {
+          await Location.requestForegroundPermissionsAsync();
+        }
+        subscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.BestForNavigation,
+            timeInterval: 1000,
+            distanceInterval: 1
+          },
+          (location) => {
+            if (cancelled) return;
+            const mps = location.coords.speed ?? 0;
+            setLiveLocation({
+              lat: location.coords.latitude,
+              lng: location.coords.longitude,
+              accuracyMeters: location.coords.accuracy ?? null,
+              speedMph: mps > 0 ? mps * 2.236936 : 0
+            });
+          }
+        );
+      } catch {
+        // Silently ignore — HUD just won't show GPS line.
+      }
+    })();
+    return () => {
+      cancelled = true;
+      subscription?.remove();
+    };
+  }, [isCameraMode]);
+
+  function formatElapsed(fromIso: string) {
+    const totalSeconds = Math.max(
+      0,
+      Math.floor((Date.now() - new Date(fromIso).getTime()) / 1000)
+    );
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+  }
 
   const hasCameraAccess =
     cameraPermission?.granted === true && microphonePermission?.granted === true;
@@ -790,7 +858,14 @@ export default function App() {
         </View>
 
         <View style={styles.cameraPanel}>
-          {hasCameraAccess ? (
+          {isCameraMode ? (
+            <View style={styles.cameraFallback}>
+              <Text style={styles.cameraFallbackTitle}>Camera in fullscreen mode</Text>
+              <Text style={styles.meta}>
+                Exit camera mode to use this preview.
+              </Text>
+            </View>
+          ) : hasCameraAccess ? (
             <>
               <CameraView
                 facing="back"
@@ -968,6 +1043,18 @@ export default function App() {
         ) : null}
 
         <Pressable
+          disabled={!hasCameraAccess}
+          onPress={() => setIsCameraMode(true)}
+          style={({ pressed }) => [
+            styles.button,
+            styles.cameraModeButton,
+            (pressed || !hasCameraAccess) && styles.buttonDisabled
+          ]}
+        >
+          <Text style={styles.cameraModeButtonText}>ENTER CAMERA MODE</Text>
+        </Pressable>
+
+        <Pressable
           onPress={openHistory}
           style={({ pressed }) => [
             styles.button,
@@ -1053,6 +1140,167 @@ export default function App() {
             />
           ) : null}
         </SafeAreaView>
+      </Modal>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setIsCameraMode(false)}
+        presentationStyle="fullScreen"
+        visible={isCameraMode}
+      >
+        <View style={styles.cameraModeRoot}>
+          <StatusBar style="light" />
+          {hasCameraAccess ? (
+            <CameraView
+              facing="back"
+              mode="video"
+              onCameraReady={() => setIsCameraReady(true)}
+              ref={cameraRef}
+              style={styles.cameraModeView}
+            />
+          ) : null}
+
+          {/* Top-left: REC indicator + elapsed */}
+          <View style={[styles.hudCorner, styles.hudTopLeft]}>
+            {isCapturingVideo ? (
+              <View style={styles.recRow}>
+                <View style={styles.recDot} />
+                <Text style={styles.hudBigText}>REC</Text>
+              </View>
+            ) : null}
+            {activeTrip ? (
+              <Text style={styles.hudText}>
+                {formatElapsed(activeTrip.startedAt)} trip
+              </Text>
+            ) : null}
+          </View>
+
+          {/* Top-right: clock + close */}
+          <View style={[styles.hudCorner, styles.hudTopRight]}>
+            <Pressable
+              hitSlop={16}
+              onPress={() => setIsCameraMode(false)}
+              style={styles.hudCloseButton}
+            >
+              <Text style={styles.hudCloseText}>EXIT</Text>
+            </Pressable>
+            <Text style={styles.hudBigText}>
+              {liveClock.toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+                hour12: false
+              })}
+            </Text>
+            <Text style={styles.hudText}>
+              {liveClock.toLocaleDateString([], {
+                month: "short",
+                day: "numeric",
+                year: "numeric"
+              })}
+            </Text>
+          </View>
+
+          {/* Cycling reminder */}
+          {isRecording ? (
+            <View style={styles.hudReminderRow}>
+              <Text style={styles.hudReminder}>
+                {DRIVING_REMINDERS[reminderIndex]}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Bottom-left: GPS */}
+          <View style={[styles.hudCorner, styles.hudBottomLeft]}>
+            {liveLocation ? (
+              <>
+                <Text style={styles.hudText}>
+                  📍 {liveLocation.lat.toFixed(5)},{" "}
+                  {liveLocation.lng.toFixed(5)}
+                </Text>
+                {liveLocation.accuracyMeters != null ? (
+                  <Text style={styles.hudSmallText}>
+                    ±{Math.round(liveLocation.accuracyMeters)}m
+                  </Text>
+                ) : null}
+              </>
+            ) : (
+              <Text style={styles.hudSmallText}>GPS searching…</Text>
+            )}
+          </View>
+
+          {/* Bottom-right: speed */}
+          <View style={[styles.hudCorner, styles.hudBottomRight]}>
+            <Text style={styles.hudBigText}>
+              {liveLocation?.speedMph != null
+                ? Math.round(liveLocation.speedMph)
+                : "--"}
+            </Text>
+            <Text style={styles.hudSmallText}>MPH</Text>
+          </View>
+
+          {/* Bottom action bar */}
+          <View style={styles.hudActionBar}>
+            <View style={styles.hudReportRow}>
+              <Pressable
+                disabled={isBusy}
+                onPress={() => reportEvent("pothole")}
+                style={({ pressed }) => [
+                  styles.hudReportPill,
+                  (pressed || isBusy) && styles.buttonDisabled
+                ]}
+              >
+                <Text style={styles.hudReportPillText}>Pothole</Text>
+              </Pressable>
+              <Pressable
+                disabled={isBusy}
+                onPress={() => reportEvent("debris")}
+                style={({ pressed }) => [
+                  styles.hudReportPill,
+                  (pressed || isBusy) && styles.buttonDisabled
+                ]}
+              >
+                <Text style={styles.hudReportPillText}>Debris</Text>
+              </Pressable>
+              <Pressable
+                disabled={isBusy}
+                onPress={() => reportEvent("crash")}
+                style={({ pressed }) => [
+                  styles.hudReportPill,
+                  styles.hudReportPillDanger,
+                  (pressed || isBusy) && styles.buttonDisabled
+                ]}
+              >
+                <Text style={styles.hudReportPillDangerText}>Crash</Text>
+              </Pressable>
+            </View>
+            {isRecording ? (
+              <Pressable
+                disabled={isBusy}
+                onPress={stopTrip}
+                style={({ pressed }) => [
+                  styles.hudPrimaryButton,
+                  styles.hudPrimaryButtonStop,
+                  (pressed || isBusy) && styles.buttonDisabled
+                ]}
+              >
+                <Text style={styles.hudPrimaryButtonStopText}>STOP TRIP</Text>
+              </Pressable>
+            ) : (
+              <Pressable
+                disabled={isBusy || !isCameraReady}
+                onPress={startTrip}
+                style={({ pressed }) => [
+                  styles.hudPrimaryButton,
+                  (pressed || isBusy || !isCameraReady) &&
+                    styles.buttonDisabled
+                ]}
+              >
+                <Text style={styles.hudPrimaryButtonText}>● RECORD</Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
       </Modal>
 
       <Modal
@@ -1699,5 +1947,154 @@ const styles = StyleSheet.create({
     color: "#ffd500",
     fontSize: 15,
     fontWeight: "800"
+  },
+  cameraModeButton: {
+    backgroundColor: "#000000",
+    borderWidth: 0
+  },
+  cameraModeButtonText: {
+    color: "#ffd500",
+    fontSize: 15,
+    fontWeight: "800",
+    letterSpacing: 1.5
+  },
+  cameraModeRoot: {
+    backgroundColor: "#000000",
+    flex: 1
+  },
+  cameraModeView: {
+    height: "100%",
+    left: 0,
+    position: "absolute",
+    top: 0,
+    width: "100%"
+  },
+  hudCorner: {
+    position: "absolute",
+    padding: 14,
+    gap: 2
+  },
+  hudTopLeft: { top: 44, left: 12, alignItems: "flex-start" },
+  hudTopRight: { top: 44, right: 12, alignItems: "flex-end" },
+  hudBottomLeft: { bottom: 168, left: 12, alignItems: "flex-start" },
+  hudBottomRight: { bottom: 168, right: 12, alignItems: "flex-end" },
+  hudText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "700",
+    textShadowColor: "rgba(0,0,0,0.85)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3
+  },
+  hudSmallText: {
+    color: "#cfd6dd",
+    fontSize: 11,
+    fontWeight: "600",
+    textShadowColor: "rgba(0,0,0,0.85)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3
+  },
+  hudBigText: {
+    color: "#ffffff",
+    fontSize: 22,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    textShadowColor: "rgba(0,0,0,0.85)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4
+  },
+  recRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 6
+  },
+  recDot: {
+    backgroundColor: "#ff2d2d",
+    borderRadius: 6,
+    height: 12,
+    width: 12
+  },
+  hudCloseButton: {
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 999,
+    marginBottom: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6
+  },
+  hudCloseText: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 1
+  },
+  hudReminderRow: {
+    alignItems: "center",
+    left: 0,
+    position: "absolute",
+    right: 0,
+    top: 130
+  },
+  hudReminder: {
+    backgroundColor: "rgba(23,32,38,0.85)",
+    borderRadius: 999,
+    color: "#ffd500",
+    fontSize: 14,
+    fontWeight: "800",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    textAlign: "center"
+  },
+  hudActionBar: {
+    bottom: 24,
+    gap: 12,
+    left: 16,
+    position: "absolute",
+    right: 16
+  },
+  hudReportRow: {
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "center"
+  },
+  hudReportPill: {
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 10
+  },
+  hudReportPillText: {
+    color: "#172026",
+    fontSize: 13,
+    fontWeight: "800"
+  },
+  hudReportPillDanger: {
+    backgroundColor: "#b91c1c"
+  },
+  hudReportPillDangerText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "800"
+  },
+  hudPrimaryButton: {
+    alignItems: "center",
+    backgroundColor: "#ffd500",
+    borderRadius: 14,
+    minHeight: 60,
+    justifyContent: "center"
+  },
+  hudPrimaryButtonText: {
+    color: "#172026",
+    fontSize: 18,
+    fontWeight: "900",
+    letterSpacing: 2
+  },
+  hudPrimaryButtonStop: {
+    backgroundColor: "#b91c1c"
+  },
+  hudPrimaryButtonStopText: {
+    color: "#ffffff",
+    fontSize: 18,
+    fontWeight: "900",
+    letterSpacing: 2
   }
 });
