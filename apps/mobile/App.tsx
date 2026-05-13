@@ -1,7 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
 import * as FileSystem from "expo-file-system";
-import * as Sharing from "expo-sharing";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -695,6 +694,16 @@ export default function App() {
         Alert.alert(
           "Cannot share",
           "Clip file is missing. It may have been removed by the system."
+        );
+        return;
+      }
+      let Sharing: typeof import("expo-sharing");
+      try {
+        Sharing = await import("expo-sharing");
+      } catch {
+        Alert.alert(
+          "Sharing not installed",
+          "This build does not include the share module yet. Rebuild the app with EAS to enable sharing."
         );
         return;
       }
