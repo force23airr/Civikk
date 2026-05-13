@@ -167,11 +167,6 @@ export default function App() {
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [isCapturingVideo, setIsCapturingVideo] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [cameraZoom, setCameraZoom] = useState(0);
-  const [availableLenses, setAvailableLenses] = useState<string[]>([]);
-  const [selectedLens, setSelectedLens] = useState<string | undefined>(
-    undefined
-  );
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [historyTrips, setHistoryTrips] = useState<TripSummary[]>([]);
   const [historyState, setHistoryState] = useState<
@@ -628,70 +623,16 @@ export default function App() {
               <CameraView
                 facing="back"
                 mode="video"
-                selectedLens={selectedLens}
-                onCameraReady={async () => {
-                  setIsCameraReady(true);
-                  try {
-                    const lenses =
-                      (await cameraRef.current?.getAvailableLensesAsync()) ?? [];
-                    setAvailableLenses(lenses);
-                  } catch {
-                    setAvailableLenses([]);
-                  }
-                }}
+                onCameraReady={() => setIsCameraReady(true)}
                 ref={cameraRef}
                 style={styles.cameraPreview}
-                zoom={cameraZoom}
               />
               <View style={styles.zoomPillRow} pointerEvents="box-none">
-                {(() => {
-                  const ultraWideLens = availableLenses.find((lens) =>
-                    lens.toLowerCase().includes("ultra wide")
-                  );
-                  type ZoomOption = {
-                    label: string;
-                    lens: string | undefined;
-                    zoom: number;
-                  };
-                  const options: ZoomOption[] = [];
-                  if (ultraWideLens) {
-                    options.push({
-                      label: "0.5x",
-                      lens: ultraWideLens,
-                      zoom: 0
-                    });
-                  }
-                  options.push({ label: "1x", lens: undefined, zoom: 0 });
-                  options.push({ label: "2x", lens: undefined, zoom: 0.5 });
-
-                  return options.map((option) => {
-                    const isActive =
-                      selectedLens === option.lens && cameraZoom === option.zoom;
-                    return (
-                      <Pressable
-                        key={option.label}
-                        onPress={() => {
-                          setSelectedLens(option.lens);
-                          setCameraZoom(option.zoom);
-                        }}
-                        style={({ pressed }) => [
-                          styles.zoomPill,
-                          isActive && styles.zoomPillActive,
-                          pressed && styles.zoomPillPressed
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.zoomPillText,
-                            isActive && styles.zoomPillTextActive
-                          ]}
-                        >
-                          {option.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  });
-                })()}
+                <View style={[styles.zoomPill, styles.zoomPillActive]}>
+                  <Text style={[styles.zoomPillText, styles.zoomPillTextActive]}>
+                    1x
+                  </Text>
+                </View>
               </View>
             </>
           ) : (
