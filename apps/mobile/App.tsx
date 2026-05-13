@@ -167,6 +167,7 @@ export default function App() {
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [isCapturingVideo, setIsCapturingVideo] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [cameraZoom, setCameraZoom] = useState(0);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [historyTrips, setHistoryTrips] = useState<TripSummary[]>([]);
   const [historyState, setHistoryState] = useState<
@@ -619,13 +620,44 @@ export default function App() {
 
         <View style={styles.cameraPanel}>
           {hasCameraAccess ? (
-            <CameraView
-              facing="back"
-              mode="video"
-              onCameraReady={() => setIsCameraReady(true)}
-              ref={cameraRef}
-              style={styles.cameraPreview}
-            />
+            <>
+              <CameraView
+                facing="back"
+                mode="video"
+                onCameraReady={() => setIsCameraReady(true)}
+                ref={cameraRef}
+                style={styles.cameraPreview}
+                zoom={cameraZoom}
+              />
+              <View style={styles.zoomPillRow} pointerEvents="box-none">
+                {[
+                  { label: "1x", value: 0 },
+                  { label: "2x", value: 0.5 }
+                ].map((option) => {
+                  const isActive = cameraZoom === option.value;
+                  return (
+                    <Pressable
+                      key={option.label}
+                      onPress={() => setCameraZoom(option.value)}
+                      style={({ pressed }) => [
+                        styles.zoomPill,
+                        isActive && styles.zoomPillActive,
+                        pressed && styles.zoomPillPressed
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.zoomPillText,
+                          isActive && styles.zoomPillTextActive
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </>
           ) : (
             <View style={styles.cameraFallback}>
               <Text style={styles.cameraFallbackTitle}>Camera access needed</Text>
@@ -1044,6 +1076,37 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     padding: 16
+  },
+  zoomPillRow: {
+    bottom: 12,
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "center",
+    left: 0,
+    position: "absolute",
+    right: 0
+  },
+  zoomPill: {
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
+    borderRadius: 999,
+    height: 32,
+    justifyContent: "center",
+    width: 44
+  },
+  zoomPillActive: {
+    backgroundColor: "rgba(255, 213, 0, 0.95)"
+  },
+  zoomPillPressed: {
+    opacity: 0.75
+  },
+  zoomPillText: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "700"
+  },
+  zoomPillTextActive: {
+    color: "#172026"
   },
   historyButton: {
     backgroundColor: "#eef2f5",
