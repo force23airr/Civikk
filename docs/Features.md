@@ -59,8 +59,11 @@ in code; the rest are direction.
 | Road events map | ✅ | Leaflet + OpenStreetMap, severity-colored markers, popups |
 | Road events table | ✅ | Type, severity, source, confidence, coordinates, trip, timestamp |
 | Loading / error / empty states | ✅ | Fetches `GET /api/road-events` |
+| Municipal queue view (`/municipal`) | ✅ | Filters to driver-reported potholes by `municipalStatus`; per-card acknowledge / mark resolved / send back to queue; map + per-tab counts |
+| Municipal console sections | ✅ | Top-nav for Live / Data collection / Data analysis / Insights / Tasks / Drivers / Users / Cars / Goals / Other visions. Live data flows into Data collection (KPIs + recent intake), Data analysis (event-type bars, severity heatmap, Pearson correlation grid, hour & day-of-week histograms, type × severity matrix, variable μ/σ), Insights (anomaly detection — z-score speed/accuracy outliers, rare types, low-confidence flags; hot spots), Tasks (queued/acknowledged kanban), Cars (chain-of-custody clip ledger). Drivers/Users/Goals/Other visions are direction placeholders with live metric stubs. |
+| Cars / camera audit view | ✅ | Chain-of-custody view: every `MediaClip` with driver/trip ids, GPS at clip end, duration, byte size, mime, upload status, storage key. Action buttons (Open footage / Log access reason) stubbed for legal-access workflow. |
 | Auth / admin views | ⬜ | Direction |
-| Fleet / municipal filtered views | ⬜ | Direction |
+| Fleet / municipal filtered views | ⬜ | Direction (per-jurisdiction routing, not just status filter) |
 
 ## Backend (Civik API) — Services & Endpoints
 
@@ -70,8 +73,8 @@ Fastify + Prisma. Idempotent writes via `idempotency-key` header.
 | --- | --- | --- |
 | Health | `GET /health` | ✅ |
 | Trips | `GET /api/trips`, `POST /api/trips/start`, `POST /api/trips/:id/end` | ✅ |
-| Road events | `POST /api/road-events` (now accepts photo + note + municipal status), `GET /api/road-events`, nearby query | ✅ |
-| Media clips | `POST /api/media/clips`, `GET /api/trips/:tripId/media-clips`, `GET /api/media/clips/:clipId`, `PATCH /api/media/clips/:clipId` (rename), `POST /api/media/clips/:clipId/complete` | ✅ (storage provider stubbed) |
+| Road events | `POST /api/road-events` (photo + note + municipal status), `GET /api/road-events` (filters: `municipalStatus`, `type`, `limit`), `PATCH /api/road-events/:id` (update `municipalStatus`), nearby query | ✅ |
+| Media clips | `POST /api/media/clips`, `GET /api/media/clips` (fleet-wide list w/ `?tripId` & `?limit` filters), `GET /api/trips/:tripId/media-clips`, `GET /api/media/clips/:clipId`, `PATCH /api/media/clips/:clipId` (rename), `POST /api/media/clips/:clipId/complete` | ✅ (storage provider stubbed) |
 | Real object storage / presigned uploads | — | ⬜ `createPresignPlaceholder` is a stub |
 | Auth (real users/devices) | — | ⬜ everything uses `dev_user` today |
 

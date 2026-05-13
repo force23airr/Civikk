@@ -6,6 +6,7 @@ import { createPresignPlaceholder, makeMediaStorageKey } from "../lib/storage";
 import {
   completeMediaClipSchema,
   createMediaClipSchema,
+  listMediaClipsQuerySchema,
   renameMediaClipSchema
 } from "../lib/validation";
 
@@ -51,6 +52,20 @@ export async function mediaRoutes(app: FastifyInstance) {
     }
 
     return reply.code(201).send(result.data);
+  });
+
+  app.get("/api/media/clips", async (request) => {
+    const query = listMediaClipsQuerySchema.parse(request.query ?? {});
+    const clips = await prisma.mediaClip.findMany({
+      where: {
+        userId: PLACEHOLDER_USER_ID,
+        ...(query.tripId ? { tripId: query.tripId } : {})
+      },
+      orderBy: { createdAt: "desc" },
+      take: query.limit
+    });
+
+    return { mediaClips: clips.map(serializeMediaClip) };
   });
 
   app.get("/api/trips/:tripId/media-clips", async (request) => {

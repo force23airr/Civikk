@@ -44,6 +44,17 @@ export const nearbyQuerySchema = z.object({
   radiusMiles: z.coerce.number().positive().max(100).default(5)
 });
 
+export const listRoadEventsQuerySchema = z.object({
+  municipalStatus: z.enum(municipalReportStatuses).optional(),
+  type: z.enum(eventTypes).optional(),
+  limit: z.coerce.number().int().positive().max(500).default(100)
+});
+
+export const updateRoadEventSchema = z.object({
+  municipalStatus: z.enum(municipalReportStatuses).optional(),
+  idempotencyKey: z.string().min(1).optional()
+});
+
 export const createMediaClipSchema = z.object({
   tripId: z.string().min(1),
   roadEventId: z.string().min(1).optional(),
@@ -68,4 +79,9 @@ export const completeMediaClipSchema = z.object({
 
 export const renameMediaClipSchema = z.object({
   name: z.string().trim().min(1).max(120)
+});
+
+export const listMediaClipsQuerySchema = z.object({
+  tripId: z.string().min(1).optional(),
+  limit: z.coerce.number().int().positive().max(500).default(100)
 });

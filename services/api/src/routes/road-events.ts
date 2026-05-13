@@ -9,7 +9,12 @@ import {
 } from "../lib/enums";
 import { runIdempotent } from "../lib/idempotency";
 import { distanceMiles } from "../lib/location";
-import { createRoadEventSchema, nearbyQuerySchema } from "../lib/validation";
+import {
+  createRoadEventSchema,
+  listRoadEventsQuerySchema,
+  nearbyQuerySchema,
+  updateRoadEventSchema
+} from "../lib/validation";
 
 const PLACEHOLDER_USER_ID = "dev_user";
 
@@ -54,13 +59,53 @@ export async function roadEventRoutes(app: FastifyInstance) {
     return reply.code(201).send(result.data);
   });
 
-  app.get("/api/road-events", async () => {
+  app.get("/api/road-events", async (request) => {
+    const query = listRoadEventsQuerySchema.parse(request.query ?? {});
     const events = await prisma.roadEvent.findMany({
+      where: {
+        ...(query.municipalStatus
+          ? { municipalStatus: toDbMunicipalStatus[query.municipalStatus] }
+          : {}),
+        ...(query.type ? { type: toDbEventType[query.type] } : {})
+      },
       orderBy: { createdAt: "desc" },
-      take: 100
+      take: query.limit
     });
 
     return { roadEvents: events.map(serializeRoadEvent) };
+  });
+
+  app.patch("/api/road-events/:id", async (request, reply) => {
+    const params = request.params as { id: string };
+    const body = updateRoadEventSchema.parse(request.body ?? {});
+
+    if (!body.municipalStatus) {
+      return reply.code(400).send({ error: "No updatable fields provided." });
+    }
+
+    const nextStatus = body.municipalStatus;
+
+    const existing = await prisma.roadEvent.findUnique({
+      where: { id: params.id }
+    });
+
+    if (!existing) {
+      return reply.code(404).send({ error: "Road event not found." });
+    }
+
+    const result = await runIdempotent(request, PLACEHOLDER_USER_ID, async () => {
+      const updated = await prisma.roadEvent.update({
+        where: { id: params.id },
+        data: { municipalStatus: toDbMunicipalStatus[nextStatus] }
+      });
+      return { roadEvent: serializeRoadEvent(updated) };
+    });
+
+    if (result.replayed) {
+      reply.header("x-idempotent-replay", "true");
+    }
+
+    return reply.code(200).send(result.data);
   });
 
   app.get("/api/road-events/nearby", async (request) => {

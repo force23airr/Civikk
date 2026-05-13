@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { RoadEvent } from "@civik/types";
 
@@ -87,9 +88,14 @@ export function RoadEventsDashboard() {
               view and table.
             </p>
           </div>
-          <div className="stat">
-            <span className="stat-value">{roadEvents.length}</span>
-            <span className="stat-label">reported events</span>
+          <div className="header-aside">
+            <div className="stat">
+              <span className="stat-value">{roadEvents.length}</span>
+              <span className="stat-label">reported events</span>
+            </div>
+            <Link href="/municipal" className="btn btn-primary header-cta">
+              Open municipal queue →
+            </Link>
           </div>
         </header>
 
