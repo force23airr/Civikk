@@ -1,6 +1,12 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "@civik/db";
-import { serializeRoadEvent, toDbEventType, toDbSeverity, toDbSource } from "../lib/enums";
+import {
+  serializeRoadEvent,
+  toDbEventType,
+  toDbMunicipalStatus,
+  toDbSeverity,
+  toDbSource
+} from "../lib/enums";
 import { runIdempotent } from "../lib/idempotency";
 import { distanceMiles } from "../lib/location";
 import { createRoadEventSchema, nearbyQuerySchema } from "../lib/validation";
@@ -12,6 +18,12 @@ export async function roadEventRoutes(app: FastifyInstance) {
     const body = createRoadEventSchema.parse(request.body ?? {});
 
     const result = await runIdempotent(request, PLACEHOLDER_USER_ID, async () => {
+      // Default: any report with a photo or an explicit municipal hint is
+      // queued for delivery to the relevant municipality. Per-jurisdiction
+      // delivery is a separate pipeline.
+      const requestedStatus =
+        body.municipalStatus ?? (body.photoLocalUri ? "queued" : undefined);
+
       const event = await prisma.roadEvent.create({
         data: {
           userId: PLACEHOLDER_USER_ID,
@@ -23,7 +35,12 @@ export async function roadEventRoutes(app: FastifyInstance) {
           accuracyMeters: body.accuracyMeters,
           source: toDbSource[body.source],
           severity: toDbSeverity[body.severity],
-          confidence: body.confidence
+          confidence: body.confidence,
+          note: body.note,
+          photoLocalUri: body.photoLocalUri,
+          ...(requestedStatus
+            ? { municipalStatus: toDbMunicipalStatus[requestedStatus] }
+            : {})
         }
       });
 

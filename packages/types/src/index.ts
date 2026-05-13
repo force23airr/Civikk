@@ -19,10 +19,19 @@ export const mediaClipStatuses = [
   "failed"
 ] as const;
 
+export const municipalReportStatuses = [
+  "not_submitted",
+  "queued",
+  "submitted",
+  "acknowledged",
+  "resolved"
+] as const;
+
 export type EventType = (typeof eventTypes)[number];
 export type Severity = (typeof severities)[number];
 export type Source = (typeof sources)[number];
 export type MediaClipStatus = (typeof mediaClipStatuses)[number];
+export type MunicipalReportStatus = (typeof municipalReportStatuses)[number];
 
 export interface Trip {
   id: string;
@@ -77,6 +86,10 @@ export interface RoadEvent {
   source: Source;
   severity: Severity;
   confidence: number;
+  note?: string | null;
+  photoLocalUri?: string | null;
+  photoStorageKey?: string | null;
+  municipalStatus: MunicipalReportStatus;
   createdAt: string;
   updatedAt: string;
 }
@@ -118,6 +131,9 @@ export interface CreateRoadEventInput {
   source?: Source;
   severity?: Severity;
   confidence?: number;
+  note?: string;
+  photoLocalUri?: string;
+  municipalStatus?: MunicipalReportStatus;
 }
 
 export interface CreateMediaClipInput {

@@ -41,6 +41,8 @@ in code; the rest are direction.
 | Fullscreen camera mode (HUD) | ✅ | Heads-up display: live clock + date, live GPS + accuracy, live speed (MPH), REC indicator + trip elapsed time, inline Record/Stop + Report buttons, cycling reminders |
 | Top bar (brand + quick actions) | ✅ | Sticky bar at the top of the main screen — Civik logo, History pill, Settings gear. Replaces the scattered bottom buttons |
 | Settings screen | ✅ | Lead section is the Civik Data Partner Program — driver-data marketplace + Jetson Orin Nano pairing for edge inference; opt-in "Notify me when ready" toggle persists locally |
+| Patch-a-pothole (photo + GPS + send to city) | ✅ | Dedicated photo-capture flow with note input, GPS at moment of capture, queued for municipal delivery (`municipalStatus = "queued"`). Per-jurisdiction delivery (311 / SeeClickFix / etc.) is wired separately. |
+| In-trip pothole-to-city report | ✅ | While recording, a single tap submits a queued report using current GPS and the active trip footage as evidence — no separate photo needed |
 | Trip history view | ✅ | Modal on the main screen lists recent trips with clip and event counts |
 | Tap a trip to see its clips and play them back | ✅ | Uses `expo-video` against each clip's `localUri` on the device |
 | Rename a clip | ✅ | Inline modal with `TextInput` (works on iOS + Android); name persists via `PATCH /api/media/clips/:id` |
@@ -68,7 +70,7 @@ Fastify + Prisma. Idempotent writes via `idempotency-key` header.
 | --- | --- | --- |
 | Health | `GET /health` | ✅ |
 | Trips | `GET /api/trips`, `POST /api/trips/start`, `POST /api/trips/:id/end` | ✅ |
-| Road events | `POST /api/road-events`, `GET /api/road-events`, nearby query | ✅ |
+| Road events | `POST /api/road-events` (now accepts photo + note + municipal status), `GET /api/road-events`, nearby query | ✅ |
 | Media clips | `POST /api/media/clips`, `GET /api/trips/:tripId/media-clips`, `GET /api/media/clips/:clipId`, `PATCH /api/media/clips/:clipId` (rename), `POST /api/media/clips/:clipId/complete` | ✅ (storage provider stubbed) |
 | Real object storage / presigned uploads | — | ⬜ `createPresignPlaceholder` is a stub |
 | Auth (real users/devices) | — | ⬜ everything uses `dev_user` today |

@@ -54,6 +54,14 @@ model Trip {
   @@index([startedAt])
 }
 
+enum MunicipalReportStatus {
+  NOT_SUBMITTED @map("not_submitted")
+  QUEUED        @map("queued")
+  SUBMITTED     @map("submitted")
+  ACKNOWLEDGED  @map("acknowledged")
+  RESOLVED      @map("resolved")
+}
+
 model RoadEvent {
   id             String    @id @default(cuid())
   userId         String
@@ -69,6 +77,10 @@ model RoadEvent {
   source         Source    @default(MANUAL)
   severity       Severity  @default(MEDIUM)
   confidence     Float     @default(1)
+  note            String?
+  photoLocalUri   String?
+  photoStorageKey String?
+  municipalStatus MunicipalReportStatus @default(NOT_SUBMITTED)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -76,6 +88,7 @@ model RoadEvent {
   @@index([tripId])
   @@index([type])
   @@index([lat, lng])
+  @@index([municipalStatus])
   @@index([createdAt])
 }
 

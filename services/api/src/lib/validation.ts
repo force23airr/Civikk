@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { eventTypes, severities, sources } from "@civik/types";
+import {
+  eventTypes,
+  municipalReportStatuses,
+  severities,
+  sources
+} from "@civik/types";
 
 export const latSchema = z.number().min(-90).max(90);
 export const lngSchema = z.number().min(-180).max(180);
@@ -27,6 +32,9 @@ export const createRoadEventSchema = z.object({
   source: z.enum(sources).default("manual"),
   severity: z.enum(severities).default("medium"),
   confidence: z.number().min(0).max(1).default(1),
+  note: z.string().trim().max(500).optional(),
+  photoLocalUri: z.string().min(1).optional(),
+  municipalStatus: z.enum(municipalReportStatuses).optional(),
   idempotencyKey: z.string().min(1).optional()
 });
 

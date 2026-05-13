@@ -8,6 +8,7 @@ import {
   Alert,
   AppState,
   FlatList,
+  Image,
   Modal,
   Pressable,
   SafeAreaView,
@@ -33,6 +34,7 @@ const PENDING_EVENTS_STORAGE_KEY = "civik.pendingRoadEvents";
 const DATA_PARTNER_INTEREST_KEY = "civik.dataPartnerInterest";
 const ROLLING_CLIP_SECONDS = 30;
 const CLIP_DIRECTORY = `${FileSystem.documentDirectory ?? ""}civik-clips/`;
+const PHOTO_DIRECTORY = `${FileSystem.documentDirectory ?? ""}civik-photos/`;
 const DRIVING_REMINDERS = [
   "Stay safe out there.",
   "Eyes on the road — Civik is watching for you.",
@@ -159,6 +161,21 @@ async function savePendingEvents(events: PendingRoadEvent[]) {
   await AsyncStorage.setItem(PENDING_EVENTS_STORAGE_KEY, JSON.stringify(events));
 }
 
+async function persistPhotoFile(uri: string) {
+  if (!FileSystem.documentDirectory) {
+    return uri;
+  }
+  await FileSystem.makeDirectoryAsync(PHOTO_DIRECTORY, {
+    intermediates: true
+  });
+  const extension = uri.split(".").pop()?.split("?")[0] || "jpg";
+  const destination = `${PHOTO_DIRECTORY}${Date.now()}-${Math.random()
+    .toString(16)
+    .slice(2)}.${extension}`;
+  await FileSystem.copyAsync({ from: uri, to: destination });
+  return destination;
+}
+
 async function persistClipFile(uri: string) {
   if (!FileSystem.documentDirectory) {
     return uri;
@@ -197,6 +214,14 @@ export default function App() {
   const [isCapturingVideo, setIsCapturingVideo] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // Patch-a-pothole flow
+  const photoCameraRef = useRef<CameraView | null>(null);
+  const [isPhotoCaptureOpen, setIsPhotoCaptureOpen] = useState(false);
+  const [isPhotoCameraReady, setIsPhotoCameraReady] = useState(false);
+  const [photoDraftUri, setPhotoDraftUri] = useState<string | null>(null);
+  const [photoNote, setPhotoNote] = useState("");
+  const [isSubmittingMunicipal, setIsSubmittingMunicipal] = useState(false);
   const [dataPartnerInterest, setDataPartnerInterest] = useState(false);
   const [isCameraMode, setIsCameraMode] = useState(false);
   const [liveClock, setLiveClock] = useState(() => new Date());
@@ -675,6 +700,110 @@ export default function App() {
     }
   }
 
+  function openPhotoCapture() {
+    setPhotoDraftUri(null);
+    setPhotoNote("");
+    setIsPhotoCameraReady(false);
+    setIsCameraMode(false); // avoid two CameraViews competing for the back lens
+    setIsPhotoCaptureOpen(true);
+  }
+
+  function closePhotoCapture() {
+    setIsPhotoCaptureOpen(false);
+    setPhotoDraftUri(null);
+    setPhotoNote("");
+  }
+
+  async function captureMunicipalPhoto() {
+    if (!photoCameraRef.current || !isPhotoCameraReady) return;
+    try {
+      const photo = await photoCameraRef.current.takePictureAsync({
+        quality: 0.7,
+        skipProcessing: false
+      });
+      if (!photo?.uri) {
+        throw new Error("No image returned from camera.");
+      }
+      const persistedUri = await persistPhotoFile(photo.uri);
+      setPhotoDraftUri(persistedUri);
+    } catch (error) {
+      Alert.alert(
+        "Photo failed",
+        error instanceof Error ? error.message : "Could not take photo."
+      );
+    }
+  }
+
+  async function submitMunicipalReport() {
+    if (!photoDraftUri) return;
+    setIsSubmittingMunicipal(true);
+    try {
+      const coordinates = await getCurrentCoordinates();
+      const data = await postJson<{ roadEvent: RoadEvent }>(
+        "/api/road-events",
+        {
+          tripId: activeTrip?.id,
+          type: "pothole",
+          severity: "medium",
+          source: "manual",
+          confidence: 1,
+          note: photoNote.trim() ? photoNote.trim() : undefined,
+          photoLocalUri: photoDraftUri,
+          municipalStatus: "queued",
+          ...coordinates
+        }
+      );
+      setLastEvent(data.roadEvent);
+      setStatus({
+        message:
+          "Submitted to your nearest municipality. Civik will route it once delivery partnerships are live.",
+        tone: "success"
+      });
+      closePhotoCapture();
+    } catch (error) {
+      Alert.alert(
+        "Submission failed",
+        error instanceof Error ? error.message : "Could not submit report."
+      );
+    } finally {
+      setIsSubmittingMunicipal(false);
+    }
+  }
+
+  async function submitInTripMunicipalReport() {
+    // Driver is already recording — the video clip IS the evidence, no still photo needed.
+    setIsSubmittingMunicipal(true);
+    try {
+      const coordinates = await getCurrentCoordinates();
+      const data = await postJson<{ roadEvent: RoadEvent }>(
+        "/api/road-events",
+        {
+          tripId: activeTrip?.id,
+          type: "pothole",
+          severity: "medium",
+          source: "manual",
+          confidence: 1,
+          note: "Captured during active recording — see linked trip clips.",
+          municipalStatus: "queued",
+          ...coordinates
+        }
+      );
+      setLastEvent(data.roadEvent);
+      setStatus({
+        message:
+          "Pothole submitted to nearest municipality with current trip footage as evidence.",
+        tone: "success"
+      });
+    } catch (error) {
+      Alert.alert(
+        "Submission failed",
+        error instanceof Error ? error.message : "Could not submit report."
+      );
+    } finally {
+      setIsSubmittingMunicipal(false);
+    }
+  }
+
   async function retryQueuedReports() {
     setStatus({
       message: "Retrying queued reports.",
@@ -915,11 +1044,15 @@ export default function App() {
         </View>
 
         <View style={styles.cameraPanel}>
-          {isCameraMode ? (
+          {isCameraMode || isPhotoCaptureOpen ? (
             <View style={styles.cameraFallback}>
-              <Text style={styles.cameraFallbackTitle}>Camera in fullscreen mode</Text>
+              <Text style={styles.cameraFallbackTitle}>
+                {isCameraMode ? "Camera in fullscreen mode" : "Camera in use"}
+              </Text>
               <Text style={styles.meta}>
-                Exit camera mode to use this preview.
+                {isCameraMode
+                  ? "Exit camera mode to use this preview."
+                  : "Finish the photo flow to return to the preview."}
               </Text>
             </View>
           ) : hasCameraAccess ? (
@@ -1074,6 +1207,21 @@ export default function App() {
           </Pressable>
         </View>
 
+        <Pressable
+          disabled={isBusy || !hasCameraAccess}
+          onPress={openPhotoCapture}
+          style={({ pressed }) => [
+            styles.button,
+            styles.patchButton,
+            (pressed || isBusy || !hasCameraAccess) && styles.buttonDisabled
+          ]}
+        >
+          <Text style={styles.patchButtonEyebrow}>📷 PATCH A POTHOLE</Text>
+          <Text style={styles.patchButtonText}>
+            Snap a photo and send to your nearest municipality
+          </Text>
+        </Pressable>
+
         {pendingEvents.length > 0 ? (
           <Pressable
             disabled={isSyncing}
@@ -1112,6 +1260,108 @@ export default function App() {
         </Pressable>
 
       </ScrollView>
+
+      <Modal
+        animationType="slide"
+        onRequestClose={closePhotoCapture}
+        presentationStyle="fullScreen"
+        visible={isPhotoCaptureOpen}
+      >
+        <View style={styles.photoModalRoot}>
+          <View style={styles.photoModalHeader}>
+            <Text style={styles.photoModalTitle}>Patch a Pothole</Text>
+            <Pressable hitSlop={12} onPress={closePhotoCapture}>
+              <Text style={styles.photoModalClose}>Cancel</Text>
+            </Pressable>
+          </View>
+
+          {!photoDraftUri ? (
+            <>
+              {hasCameraAccess ? (
+                <CameraView
+                  facing="back"
+                  mode="picture"
+                  onCameraReady={() => setIsPhotoCameraReady(true)}
+                  ref={photoCameraRef}
+                  style={styles.photoCameraView}
+                />
+              ) : (
+                <View style={styles.historyPadding}>
+                  <Text style={styles.photoModalBody}>
+                    Camera access is required to take a photo.
+                  </Text>
+                </View>
+              )}
+              <View style={styles.photoModalFooter}>
+                <Text style={styles.photoModalBody}>
+                  Point at the pothole and tap below. We will capture your
+                  current GPS at the moment you snap.
+                </Text>
+                <Pressable
+                  disabled={!isPhotoCameraReady || isSubmittingMunicipal}
+                  onPress={captureMunicipalPhoto}
+                  style={({ pressed }) => [
+                    styles.photoShutterButton,
+                    (pressed || !isPhotoCameraReady) && styles.buttonDisabled
+                  ]}
+                >
+                  <Text style={styles.photoShutterButtonText}>
+                    ● SNAP PHOTO
+                  </Text>
+                </Pressable>
+              </View>
+            </>
+          ) : (
+            <ScrollView contentContainerStyle={styles.photoReviewContent}>
+              <Image
+                source={{ uri: photoDraftUri }}
+                style={styles.photoReviewImage}
+              />
+              <Text style={styles.photoModalBody}>
+                Add an optional note (which lane, how big, hazard level).
+              </Text>
+              <TextInput
+                multiline
+                maxLength={500}
+                onChangeText={setPhotoNote}
+                placeholder="e.g. deep pothole right lane northbound past 5th"
+                placeholderTextColor="#9aa4b0"
+                style={styles.photoNoteInput}
+                value={photoNote}
+              />
+              <View style={styles.photoReviewActions}>
+                <Pressable
+                  disabled={isSubmittingMunicipal}
+                  onPress={() => setPhotoDraftUri(null)}
+                  style={({ pressed }) => [
+                    styles.photoReviewSecondary,
+                    pressed && styles.buttonDisabled
+                  ]}
+                >
+                  <Text style={styles.photoReviewSecondaryText}>Retake</Text>
+                </Pressable>
+                <Pressable
+                  disabled={isSubmittingMunicipal}
+                  onPress={submitMunicipalReport}
+                  style={({ pressed }) => [
+                    styles.photoReviewPrimary,
+                    (pressed || isSubmittingMunicipal) && styles.buttonDisabled
+                  ]}
+                >
+                  <Text style={styles.photoReviewPrimaryText}>
+                    {isSubmittingMunicipal ? "Submitting…" : "Send to City"}
+                  </Text>
+                </Pressable>
+              </View>
+              <Text style={styles.photoModalSmallPrint}>
+                Civik queues this report for routing to your nearest municipality.
+                Per-jurisdiction delivery (311, SeeClickFix, etc.) is wired
+                separately — your photo, location, and note are saved either way.
+              </Text>
+            </ScrollView>
+          )}
+        </View>
+      </Modal>
 
       <Modal
         animationType="slide"
@@ -1449,6 +1699,23 @@ export default function App() {
                 <Text style={styles.hudReportPillDangerText}>Crash</Text>
               </Pressable>
             </View>
+            <Pressable
+              disabled={isBusy || isSubmittingMunicipal}
+              onPress={isRecording ? submitInTripMunicipalReport : openPhotoCapture}
+              style={({ pressed }) => [
+                styles.hudCityButton,
+                (pressed || isBusy || isSubmittingMunicipal) &&
+                  styles.buttonDisabled
+              ]}
+            >
+              <Text style={styles.hudCityButtonText}>
+                {isSubmittingMunicipal
+                  ? "Submitting…"
+                  : isRecording
+                    ? "📷 Send Pothole to City (uses trip footage)"
+                    : "📷 Snap Pothole & Send to City"}
+              </Text>
+            </Pressable>
             {isRecording ? (
               <Pressable
                 disabled={isBusy}
@@ -2420,5 +2687,138 @@ const styles = StyleSheet.create({
   settingsToggleKnobOn: {
     backgroundColor: "#172026",
     marginLeft: 22
+  },
+  patchButton: {
+    alignItems: "center",
+    backgroundColor: "#ffd500",
+    gap: 4
+  },
+  patchButtonEyebrow: {
+    color: "#172026",
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 2
+  },
+  patchButtonText: {
+    color: "#172026",
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "center"
+  },
+  hudCityButton: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,213,0,0.95)",
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 10
+  },
+  hudCityButtonText: {
+    color: "#172026",
+    fontSize: 13,
+    fontWeight: "900",
+    letterSpacing: 0.5
+  },
+  photoModalRoot: {
+    backgroundColor: "#0b1015",
+    flex: 1
+  },
+  photoModalHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: 56,
+    paddingBottom: 12
+  },
+  photoModalTitle: {
+    color: "#ffffff",
+    fontSize: 20,
+    fontWeight: "900"
+  },
+  photoModalClose: {
+    color: "#ffd500",
+    fontSize: 15,
+    fontWeight: "800"
+  },
+  photoCameraView: {
+    flex: 1
+  },
+  photoModalFooter: {
+    backgroundColor: "rgba(0,0,0,0.4)",
+    gap: 12,
+    padding: 16
+  },
+  photoModalBody: {
+    color: "#cfd6dd",
+    fontSize: 13,
+    lineHeight: 18
+  },
+  photoShutterButton: {
+    alignItems: "center",
+    backgroundColor: "#ffd500",
+    borderRadius: 14,
+    minHeight: 60,
+    justifyContent: "center"
+  },
+  photoShutterButtonText: {
+    color: "#172026",
+    fontSize: 17,
+    fontWeight: "900",
+    letterSpacing: 2
+  },
+  photoReviewContent: {
+    gap: 14,
+    padding: 16,
+    paddingBottom: 40
+  },
+  photoReviewImage: {
+    aspectRatio: 3 / 4,
+    backgroundColor: "#000000",
+    borderRadius: 12,
+    width: "100%"
+  },
+  photoNoteInput: {
+    backgroundColor: "#172026",
+    borderRadius: 10,
+    color: "#ffffff",
+    fontSize: 15,
+    minHeight: 100,
+    padding: 12,
+    textAlignVertical: "top"
+  },
+  photoReviewActions: {
+    flexDirection: "row",
+    gap: 10
+  },
+  photoReviewSecondary: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderRadius: 12,
+    flex: 1,
+    paddingVertical: 14
+  },
+  photoReviewSecondaryText: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "800"
+  },
+  photoReviewPrimary: {
+    alignItems: "center",
+    backgroundColor: "#ffd500",
+    borderRadius: 12,
+    flex: 2,
+    paddingVertical: 14
+  },
+  photoReviewPrimaryText: {
+    color: "#172026",
+    fontSize: 15,
+    fontWeight: "900",
+    letterSpacing: 1
+  },
+  photoModalSmallPrint: {
+    color: "#9aa4b0",
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 4
   }
 });

@@ -2,6 +2,7 @@ import type {
   EventType,
   MediaClip,
   MediaClipStatus,
+  MunicipalReportStatus,
   RoadEvent,
   Severity,
   Source,
@@ -10,6 +11,7 @@ import type {
 import {
   EventType as DbEventType,
   MediaClipStatus as DbMediaClipStatus,
+  MunicipalReportStatus as DbMunicipalReportStatus,
   Severity as DbSeverity,
   Source as DbSource
 } from "@civik/db";
@@ -62,6 +64,28 @@ export const fromDbSource: Record<DbSource, Source> = {
   [DbSource.ML]: "ml"
 };
 
+export const toDbMunicipalStatus: Record<
+  MunicipalReportStatus,
+  DbMunicipalReportStatus
+> = {
+  not_submitted: DbMunicipalReportStatus.NOT_SUBMITTED,
+  queued: DbMunicipalReportStatus.QUEUED,
+  submitted: DbMunicipalReportStatus.SUBMITTED,
+  acknowledged: DbMunicipalReportStatus.ACKNOWLEDGED,
+  resolved: DbMunicipalReportStatus.RESOLVED
+};
+
+export const fromDbMunicipalStatus: Record<
+  DbMunicipalReportStatus,
+  MunicipalReportStatus
+> = {
+  [DbMunicipalReportStatus.NOT_SUBMITTED]: "not_submitted",
+  [DbMunicipalReportStatus.QUEUED]: "queued",
+  [DbMunicipalReportStatus.SUBMITTED]: "submitted",
+  [DbMunicipalReportStatus.ACKNOWLEDGED]: "acknowledged",
+  [DbMunicipalReportStatus.RESOLVED]: "resolved"
+};
+
 export const toDbMediaClipStatus: Record<MediaClipStatus, DbMediaClipStatus> = {
   pending_upload: DbMediaClipStatus.PENDING_UPLOAD,
   uploaded: DbMediaClipStatus.UPLOADED,
@@ -108,6 +132,10 @@ export function serializeRoadEvent(event: {
   source: DbSource;
   severity: DbSeverity;
   confidence: number;
+  note: string | null;
+  photoLocalUri: string | null;
+  photoStorageKey: string | null;
+  municipalStatus: DbMunicipalReportStatus;
   createdAt: Date;
   updatedAt: Date;
 }): RoadEvent {
@@ -116,6 +144,7 @@ export function serializeRoadEvent(event: {
     type: fromDbEventType[event.type],
     source: fromDbSource[event.source],
     severity: fromDbSeverity[event.severity],
+    municipalStatus: fromDbMunicipalStatus[event.municipalStatus],
     createdAt: event.createdAt.toISOString(),
     updatedAt: event.updatedAt.toISOString()
   };
