@@ -38,6 +38,7 @@ in code; the rest are direction.
 | Camera trip capture | ✅ | Rolling ~30s video segments while a trip is active; resumes on foreground |
 | Local clip storage | ✅ | Completed clips copied to app document directory before metadata is sent |
 | Trip history view | ✅ | Modal on the main screen lists recent trips with clip and event counts |
+| Tap a trip to see its clips and play them back | ✅ | Uses `expo-video` against each clip's `localUri` on the device |
 | Offline clip-metadata queue | ⬜ | Not yet — clip file is saved but metadata POST is not queued if offline |
 | Clip retention / cleanup | ⬜ | Not yet — old clips are never deleted |
 | Auto-attach clips to road events (before/after window) | ⬜ | Direction |

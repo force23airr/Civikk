@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
 import * as FileSystem from "expo-file-system";
+import { useVideoPlayer, VideoView } from "expo-video";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -168,6 +169,14 @@ export default function App() {
   const [isCapturingVideo, setIsCapturingVideo] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [selectedHistoryTrip, setSelectedHistoryTrip] =
+    useState<TripSummary | null>(null);
+  const [tripClips, setTripClips] = useState<MediaClip[]>([]);
+  const [tripClipsState, setTripClipsState] = useState<
+    "idle" | "loading" | "error"
+  >("idle");
+  const [tripClipsError, setTripClipsError] = useState<string | null>(null);
+  const [playingClip, setPlayingClip] = useState<MediaClip | null>(null);
   const [historyTrips, setHistoryTrips] = useState<TripSummary[]>([]);
   const [historyState, setHistoryState] = useState<
     "idle" | "loading" | "error"
@@ -573,6 +582,48 @@ export default function App() {
     }
   }
 
+  async function openTripDetail(trip: TripSummary) {
+    setSelectedHistoryTrip(trip);
+    setTripClipsState("loading");
+    setTripClipsError(null);
+    setTripClips([]);
+    try {
+      const response = await fetch(
+        `${API_URL}/api/trips/${trip.id}/media-clips`
+      );
+      if (!response.ok) {
+        throw new Error(`API returned ${response.status}`);
+      }
+      const data = (await response.json()) as { mediaClips: MediaClip[] };
+      setTripClips(data.mediaClips);
+      setTripClipsState("idle");
+    } catch (error) {
+      setTripClipsState("error");
+      setTripClipsError(
+        error instanceof Error ? error.message : "Could not load clips."
+      );
+    }
+  }
+
+  function closeTripDetail() {
+    setSelectedHistoryTrip(null);
+    setTripClips([]);
+    setTripClipsState("idle");
+    setTripClipsError(null);
+  }
+
+  function formatClipTime(value: string | null | undefined) {
+    if (!value) {
+      return "Unknown time";
+    }
+    return new Date(value).toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit"
+    });
+  }
+
   function formatTripRange(trip: TripSummary) {
     const started = new Date(trip.startedAt);
     const startLabel = started.toLocaleString([], {
@@ -850,7 +901,13 @@ export default function App() {
               data={historyTrips}
               keyExtractor={(item) => item.id}
               renderItem={({ item }) => (
-                <View style={styles.historyCard}>
+                <Pressable
+                  onPress={() => openTripDetail(item)}
+                  style={({ pressed }) => [
+                    styles.historyCard,
+                    pressed && styles.buttonDisabled
+                  ]}
+                >
                   <Text style={styles.historyCardTitle}>
                     {formatTripRange(item)}
                   </Text>
@@ -862,13 +919,135 @@ export default function App() {
                     {item.endedAt ? "" : "  •  active"}
                   </Text>
                   <Text style={styles.historyCardId}>{item.id}</Text>
-                </View>
+                </Pressable>
               )}
             />
           ) : null}
         </SafeAreaView>
       </Modal>
+
+      <Modal
+        animationType="slide"
+        onRequestClose={closeTripDetail}
+        presentationStyle="pageSheet"
+        visible={selectedHistoryTrip !== null}
+      >
+        <SafeAreaView style={styles.screen}>
+          <View style={styles.historyHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.title}>Trip</Text>
+              {selectedHistoryTrip ? (
+                <Text style={styles.meta}>
+                  {formatTripRange(selectedHistoryTrip)}
+                </Text>
+              ) : null}
+            </View>
+            <Pressable onPress={closeTripDetail}>
+              <Text style={styles.historyClose}>Close</Text>
+            </Pressable>
+          </View>
+
+          {tripClipsState === "loading" ? (
+            <View style={styles.loading}>
+              <ActivityIndicator />
+              <Text style={styles.meta}>Loading clips.</Text>
+            </View>
+          ) : null}
+
+          {tripClipsState === "error" ? (
+            <View style={styles.historyPadding}>
+              <Text style={[styles.statusText, styles.error]}>
+                {tripClipsError ?? "Could not load clips."}
+              </Text>
+            </View>
+          ) : null}
+
+          {tripClipsState === "idle" && tripClips.length === 0 ? (
+            <View style={styles.historyPadding}>
+              <Text style={styles.meta}>No clips recorded for this trip.</Text>
+            </View>
+          ) : null}
+
+          {tripClipsState === "idle" && tripClips.length > 0 ? (
+            <FlatList
+              contentContainerStyle={styles.historyList}
+              data={tripClips}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => {
+                const hasPlayableUri = Boolean(item.localUri);
+                return (
+                  <Pressable
+                    disabled={!hasPlayableUri}
+                    onPress={() => setPlayingClip(item)}
+                    style={({ pressed }) => [
+                      styles.clipCard,
+                      pressed && styles.buttonDisabled,
+                      !hasPlayableUri && styles.clipCardDisabled
+                    ]}
+                  >
+                    <Text style={styles.clipCardTitle}>
+                      {formatClipTime(item.startedAt ?? item.createdAt)}
+                    </Text>
+                    <Text style={styles.meta}>
+                      {Math.round(item.durationSeconds ?? 0)}s • {item.status}
+                    </Text>
+                    <Text style={styles.clipCardCta}>
+                      {hasPlayableUri ? "Tap to play" : "Not stored on this device"}
+                    </Text>
+                  </Pressable>
+                );
+              }}
+            />
+          ) : null}
+        </SafeAreaView>
+      </Modal>
+
+      <ClipPlayerModal clip={playingClip} onClose={() => setPlayingClip(null)} />
     </SafeAreaView>
+  );
+}
+
+function ClipPlayerModal({
+  clip,
+  onClose
+}: {
+  clip: MediaClip | null;
+  onClose: () => void;
+}) {
+  const player = useVideoPlayer(clip?.localUri ?? null, (instance) => {
+    instance.loop = false;
+    if (clip?.localUri) {
+      instance.play();
+    }
+  });
+
+  return (
+    <Modal
+      animationType="fade"
+      onRequestClose={onClose}
+      presentationStyle="fullScreen"
+      visible={clip !== null}
+    >
+      <SafeAreaView style={styles.playerScreen}>
+        <View style={styles.playerHeader}>
+          <Pressable onPress={onClose}>
+            <Text style={styles.playerClose}>Done</Text>
+          </Pressable>
+        </View>
+        {clip?.localUri ? (
+          <VideoView
+            allowsFullscreen
+            contentFit="contain"
+            player={player}
+            style={styles.playerVideo}
+          />
+        ) : (
+          <View style={styles.historyPadding}>
+            <Text style={styles.meta}>This clip is not stored on this device.</Text>
+          </View>
+        )}
+      </SafeAreaView>
+    </Modal>
   );
 }
 
@@ -1131,5 +1310,43 @@ const styles = StyleSheet.create({
     color: "#6b7886",
     fontFamily: "Courier",
     fontSize: 11
+  },
+  clipCard: {
+    backgroundColor: "#ffffff",
+    borderColor: "#dce3e8",
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 6,
+    padding: 14
+  },
+  clipCardDisabled: {
+    opacity: 0.55
+  },
+  clipCardTitle: {
+    color: "#172026",
+    fontSize: 15,
+    fontWeight: "700"
+  },
+  clipCardCta: {
+    color: "#2563eb",
+    fontSize: 13,
+    fontWeight: "700"
+  },
+  playerScreen: {
+    backgroundColor: "#000000",
+    flex: 1
+  },
+  playerHeader: {
+    alignItems: "flex-end",
+    padding: 16
+  },
+  playerClose: {
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "700"
+  },
+  playerVideo: {
+    backgroundColor: "#000000",
+    flex: 1
   }
 });
