@@ -30,6 +30,19 @@ const ACTIVE_TRIP_STORAGE_KEY = "civik.activeTrip";
 const PENDING_EVENTS_STORAGE_KEY = "civik.pendingRoadEvents";
 const ROLLING_CLIP_SECONDS = 30;
 const CLIP_DIRECTORY = `${FileSystem.documentDirectory ?? ""}civik-clips/`;
+const DRIVING_REMINDERS = [
+  "Stay safe out there.",
+  "Eyes on the road — Civik is watching for you.",
+  "Two hands on the wheel.",
+  "Leave space. Trust your gut.",
+  "Hydrate. Stretch if you stop.",
+  "Looking out for your road family.",
+  "You are the data that makes roads safer.",
+  "If something feels off, tap a report.",
+  "Take a break if you need one.",
+  "Thanks for driving with Civik."
+];
+const REMINDER_INTERVAL_MS = 7000;
 
 type ApiStatus = {
   message: string;
@@ -191,6 +204,20 @@ export default function App() {
     () => Boolean(activeTrip && !activeTrip.endedAt),
     [activeTrip]
   );
+
+  const [reminderIndex, setReminderIndex] = useState(0);
+
+  useEffect(() => {
+    if (!isRecording) {
+      setReminderIndex(0);
+      return;
+    }
+    setReminderIndex(0);
+    const handle = setInterval(() => {
+      setReminderIndex((current) => (current + 1) % DRIVING_REMINDERS.length);
+    }, REMINDER_INTERVAL_MS);
+    return () => clearInterval(handle);
+  }, [isRecording]);
 
   const hasCameraAccess =
     cameraPermission?.granted === true && microphonePermission?.granted === true;
@@ -705,6 +732,14 @@ export default function App() {
             </View>
           )}
         </View>
+
+        {isRecording ? (
+          <View style={styles.reminderPanel}>
+            <Text style={styles.reminderText}>
+              {DRIVING_REMINDERS[reminderIndex]}
+            </Text>
+          </View>
+        ) : null}
 
         <View style={styles.statusPanel}>
           <View style={styles.statusHeader}>
@@ -1232,6 +1267,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     padding: 16
+  },
+  reminderPanel: {
+    backgroundColor: "#172026",
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14
+  },
+  reminderText: {
+    color: "#ffd500",
+    fontSize: 16,
+    fontWeight: "700",
+    textAlign: "center"
   },
   zoomPillRow: {
     bottom: 12,
