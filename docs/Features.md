@@ -39,6 +39,8 @@ in code; the rest are direction.
 | Local clip storage | ✅ | Completed clips copied to app document directory before metadata is sent |
 | Clip location stamp | ✅ | Every clip captures lat/lng + accuracy + speed at clip end; safe-fails if GPS unavailable |
 | Fullscreen camera mode (HUD) | ✅ | Heads-up display: live clock + date, live GPS + accuracy, live speed (MPH), REC indicator + trip elapsed time, inline Record/Stop + Report buttons, cycling reminders |
+| Top bar (brand + quick actions) | ✅ | Sticky bar at the top of the main screen — Civik logo, History pill, Settings gear. Replaces the scattered bottom buttons |
+| Settings screen | ✅ | Lead section is the Civik Data Partner Program — driver-data marketplace + Jetson Orin Nano pairing for edge inference; opt-in "Notify me when ready" toggle persists locally |
 | Trip history view | ✅ | Modal on the main screen lists recent trips with clip and event counts |
 | Tap a trip to see its clips and play them back | ✅ | Uses `expo-video` against each clip's `localUri` on the device |
 | Rename a clip | ✅ | Inline modal with `TextInput` (works on iOS + Android); name persists via `PATCH /api/media/clips/:id` |

@@ -30,6 +30,7 @@ import type {
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
 const ACTIVE_TRIP_STORAGE_KEY = "civik.activeTrip";
 const PENDING_EVENTS_STORAGE_KEY = "civik.pendingRoadEvents";
+const DATA_PARTNER_INTEREST_KEY = "civik.dataPartnerInterest";
 const ROLLING_CLIP_SECONDS = 30;
 const CLIP_DIRECTORY = `${FileSystem.documentDirectory ?? ""}civik-clips/`;
 const DRIVING_REMINDERS = [
@@ -137,6 +138,18 @@ async function saveActiveTrip(trip: Trip | null) {
   await AsyncStorage.removeItem(ACTIVE_TRIP_STORAGE_KEY);
 }
 
+async function loadDataPartnerInterest() {
+  const value = await AsyncStorage.getItem(DATA_PARTNER_INTEREST_KEY);
+  return value === "true";
+}
+
+async function saveDataPartnerInterest(interested: boolean) {
+  await AsyncStorage.setItem(
+    DATA_PARTNER_INTEREST_KEY,
+    interested ? "true" : "false"
+  );
+}
+
 async function loadPendingEvents() {
   const value = await AsyncStorage.getItem(PENDING_EVENTS_STORAGE_KEY);
   return value ? (JSON.parse(value) as PendingRoadEvent[]) : [];
@@ -183,6 +196,8 @@ export default function App() {
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [isCapturingVideo, setIsCapturingVideo] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [dataPartnerInterest, setDataPartnerInterest] = useState(false);
   const [isCameraMode, setIsCameraMode] = useState(false);
   const [liveClock, setLiveClock] = useState(() => new Date());
   const [liveLocation, setLiveLocation] = useState<{
@@ -356,9 +371,10 @@ export default function App() {
 
     async function restoreState() {
       try {
-        const [storedTrip, storedEvents] = await Promise.all([
+        const [storedTrip, storedEvents, storedInterest] = await Promise.all([
           loadActiveTrip(),
-          loadPendingEvents()
+          loadPendingEvents(),
+          loadDataPartnerInterest()
         ]);
 
         if (!isMounted) {
@@ -368,6 +384,7 @@ export default function App() {
         activeTripRef.current = storedTrip;
         setActiveTrip(storedTrip);
         setPendingEvents(storedEvents);
+        setDataPartnerInterest(storedInterest);
         setStatus({
           message: storedTrip ? "Trip resumed." : "Ready to record.",
           tone: storedTrip ? "success" : "idle"
@@ -666,6 +683,16 @@ export default function App() {
     await syncPendingEvents();
   }
 
+  async function toggleDataPartnerInterest() {
+    const next = !dataPartnerInterest;
+    setDataPartnerInterest(next);
+    try {
+      await saveDataPartnerInterest(next);
+    } catch {
+      // non-fatal; UI already reflects the toggle.
+    }
+  }
+
   async function openHistory() {
     setIsHistoryOpen(true);
     setHistoryState("loading");
@@ -847,9 +874,39 @@ export default function App() {
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar style="dark" />
+
+      <View style={styles.topBar}>
+        <View style={styles.topBarBrand}>
+          <Text style={styles.topBarLogo}>CIVIK</Text>
+          <Text style={styles.topBarTagline}>DRIVE</Text>
+        </View>
+        <View style={styles.topBarActions}>
+          <Pressable
+            hitSlop={12}
+            onPress={openHistory}
+            style={({ pressed }) => [
+              styles.topBarIconButton,
+              pressed && styles.buttonDisabled
+            ]}
+          >
+            <Text style={styles.topBarIconText}>History</Text>
+          </Pressable>
+          <Pressable
+            hitSlop={12}
+            onPress={() => setIsSettingsOpen(true)}
+            style={({ pressed }) => [
+              styles.topBarIconButton,
+              styles.topBarSettingsButton,
+              pressed && styles.buttonDisabled
+            ]}
+          >
+            <Text style={styles.topBarSettingsIcon}>⚙</Text>
+          </Pressable>
+        </View>
+      </View>
+
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.title}>Civik Drive</Text>
           <Text style={styles.subtitle}>
             {isRecording
               ? "Trip state and completed clips are preserved if the app is interrupted."
@@ -1054,17 +1111,135 @@ export default function App() {
           <Text style={styles.cameraModeButtonText}>ENTER CAMERA MODE</Text>
         </Pressable>
 
-        <Pressable
-          onPress={openHistory}
-          style={({ pressed }) => [
-            styles.button,
-            styles.historyButton,
-            pressed && styles.buttonDisabled
-          ]}
-        >
-          <Text style={styles.historyButtonText}>View Trip History</Text>
-        </Pressable>
       </ScrollView>
+
+      <Modal
+        animationType="slide"
+        onRequestClose={() => setIsSettingsOpen(false)}
+        presentationStyle="pageSheet"
+        visible={isSettingsOpen}
+      >
+        <SafeAreaView style={styles.screen}>
+          <View style={styles.historyHeader}>
+            <Text style={styles.title}>Settings</Text>
+            <Pressable onPress={() => setIsSettingsOpen(false)}>
+              <Text style={styles.historyClose}>Close</Text>
+            </Pressable>
+          </View>
+
+          <ScrollView contentContainerStyle={styles.settingsContent}>
+            {/* Lead feature: Data Partner Program */}
+            <View style={styles.settingsCardHero}>
+              <Text style={styles.settingsHeroEyebrow}>
+                CIVIK DATA PARTNER PROGRAM
+              </Text>
+              <Text style={styles.settingsHeroTitle}>
+                Earn from your footage.
+              </Text>
+              <Text style={styles.settingsHeroBody}>
+                AI companies pay for high-quality, real-world driving data —
+                labeled clips with GPS, time, and road context. Civik turns your
+                trips into a passive income stream by aggregating consented
+                footage and selling it to model trainers, mapping companies, and
+                infrastructure analysts. You get a share of every sale tied to
+                your data.
+              </Text>
+
+              <View style={styles.settingsDivider} />
+
+              <Text style={styles.settingsSectionLabel}>
+                CONNECT NVIDIA JETSON ORIN
+              </Text>
+              <Text style={styles.settingsBody}>
+                Plug an NVIDIA Jetson Orin Nano dev kit into your vehicle and
+                Civik will run inference on your footage at the edge — detecting
+                potholes, debris, lane damage, and near-miss events as they
+                happen. Pre-labeled data is worth more, so connected drivers
+                earn more per upload.
+              </Text>
+              <Pressable
+                onPress={() =>
+                  Alert.alert(
+                    "Coming soon",
+                    "Edge inference and Jetson Orin pairing is in development. Toggle 'Notify me when ready' below to get early access."
+                  )
+                }
+                style={({ pressed }) => [
+                  styles.settingsCtaButton,
+                  pressed && styles.buttonDisabled
+                ]}
+              >
+                <Text style={styles.settingsCtaButtonText}>
+                  Connect a Jetson Orin (coming soon)
+                </Text>
+              </Pressable>
+
+              <View style={styles.settingsDivider} />
+
+              <Pressable
+                onPress={toggleDataPartnerInterest}
+                style={({ pressed }) => [
+                  styles.settingsToggleRow,
+                  pressed && styles.buttonDisabled
+                ]}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.settingsToggleTitle}>
+                    Notify me when ready
+                  </Text>
+                  <Text style={styles.settingsBody}>
+                    We will let you know when the data partner program and
+                    Jetson pairing go live.
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.settingsToggleSwitch,
+                    dataPartnerInterest && styles.settingsToggleSwitchOn
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.settingsToggleKnob,
+                      dataPartnerInterest && styles.settingsToggleKnobOn
+                    ]}
+                  />
+                </View>
+              </Pressable>
+            </View>
+
+            {/* Account placeholder */}
+            <View style={styles.settingsCard}>
+              <Text style={styles.settingsSectionLabel}>ACCOUNT</Text>
+              <Text style={styles.settingsBody}>
+                Auth is not wired yet — every trip belongs to "dev_user" right
+                now. Real accounts, devices, and payouts come with the data
+                partner launch.
+              </Text>
+            </View>
+
+            {/* Storage placeholder */}
+            <View style={styles.settingsCard}>
+              <Text style={styles.settingsSectionLabel}>STORAGE</Text>
+              <Text style={styles.settingsBody}>
+                Clips are stored locally on this device until cloud upload is
+                wired. Retention controls (keep last N days / X GB) will live
+                here.
+              </Text>
+            </View>
+
+            {/* About */}
+            <View style={styles.settingsCard}>
+              <Text style={styles.settingsSectionLabel}>ABOUT</Text>
+              <Text style={styles.settingsBody}>
+                Civik turns your driving phone into a road-intelligence
+                sensor — for you, your fleet, your city, and the road
+                community.
+              </Text>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
 
       <Modal
         animationType="slide"
@@ -2096,5 +2271,154 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "900",
     letterSpacing: 2
+  },
+  topBar: {
+    alignItems: "center",
+    backgroundColor: "#172026",
+    borderBottomColor: "#0b1015",
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12
+  },
+  topBarBrand: {
+    alignItems: "baseline",
+    flexDirection: "row",
+    gap: 6
+  },
+  topBarLogo: {
+    color: "#ffd500",
+    fontSize: 18,
+    fontWeight: "900",
+    letterSpacing: 2
+  },
+  topBarTagline: {
+    color: "#ffffff",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 2
+  },
+  topBarActions: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8
+  },
+  topBarIconButton: {
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6
+  },
+  topBarIconText: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 1
+  },
+  topBarSettingsButton: {
+    alignItems: "center",
+    height: 32,
+    justifyContent: "center",
+    paddingHorizontal: 0,
+    width: 32
+  },
+  topBarSettingsIcon: {
+    color: "#ffd500",
+    fontSize: 18
+  },
+  settingsContent: {
+    gap: 14,
+    padding: 16,
+    paddingBottom: 40
+  },
+  settingsCardHero: {
+    backgroundColor: "#172026",
+    borderRadius: 14,
+    gap: 10,
+    padding: 18
+  },
+  settingsCard: {
+    backgroundColor: "#ffffff",
+    borderColor: "#dce3e8",
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 8,
+    padding: 16
+  },
+  settingsHeroEyebrow: {
+    color: "#ffd500",
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 2
+  },
+  settingsHeroTitle: {
+    color: "#ffffff",
+    fontSize: 22,
+    fontWeight: "900"
+  },
+  settingsHeroBody: {
+    color: "#cfd6dd",
+    fontSize: 14,
+    lineHeight: 20
+  },
+  settingsDivider: {
+    backgroundColor: "rgba(255,255,255,0.1)",
+    height: 1,
+    marginVertical: 4
+  },
+  settingsSectionLabel: {
+    color: "#172026",
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 2
+  },
+  settingsBody: {
+    color: "#6b7886",
+    fontSize: 13,
+    lineHeight: 18
+  },
+  settingsCtaButton: {
+    alignItems: "center",
+    backgroundColor: "#ffd500",
+    borderRadius: 10,
+    paddingVertical: 12
+  },
+  settingsCtaButtonText: {
+    color: "#172026",
+    fontSize: 14,
+    fontWeight: "900",
+    letterSpacing: 1
+  },
+  settingsToggleRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 12
+  },
+  settingsToggleTitle: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "800"
+  },
+  settingsToggleSwitch: {
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderRadius: 999,
+    height: 28,
+    justifyContent: "center",
+    padding: 2,
+    width: 50
+  },
+  settingsToggleSwitchOn: {
+    backgroundColor: "#ffd500"
+  },
+  settingsToggleKnob: {
+    backgroundColor: "#ffffff",
+    borderRadius: 999,
+    height: 24,
+    width: 24
+  },
+  settingsToggleKnobOn: {
+    backgroundColor: "#172026",
+    marginLeft: 22
   }
 });
