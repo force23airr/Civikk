@@ -87,6 +87,7 @@ model MediaClip {
   trip            Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
   roadEventId     String?
   roadEvent       RoadEvent?      @relation(fields: [roadEventId], references: [id], onDelete: SetNull)
+  name            String?
   status          MediaClipStatus @default(PENDING_UPLOAD)
   localUri        String?
   storageKey      String?

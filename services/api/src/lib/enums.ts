@@ -126,6 +126,7 @@ export function serializeMediaClip(clip: {
   userId: string;
   tripId: string;
   roadEventId: string | null;
+  name: string | null;
   status: DbMediaClipStatus;
   localUri: string | null;
   storageKey: string | null;

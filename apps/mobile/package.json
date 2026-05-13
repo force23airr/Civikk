@@ -24,6 +24,7 @@
     "expo-dev-client": "~5.2.4",
     "expo-file-system": "^18.1.11",
     "expo-location": "~18.1.0",
+    "expo-sharing": "~13.1.5",
     "expo-status-bar": "~2.2.3",
     "expo-updates": "~0.28.18",
     "expo-video": "~2.2.2",

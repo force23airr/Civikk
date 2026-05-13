@@ -1,10 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
 import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   AppState,
   FlatList,
   Modal,
@@ -13,6 +15,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
@@ -190,6 +193,8 @@ export default function App() {
   >("idle");
   const [tripClipsError, setTripClipsError] = useState<string | null>(null);
   const [playingClip, setPlayingClip] = useState<MediaClip | null>(null);
+  const [renamingClip, setRenamingClip] = useState<MediaClip | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
   const [historyTrips, setHistoryTrips] = useState<TripSummary[]>([]);
   const [historyState, setHistoryState] = useState<
     "idle" | "loading" | "error"
@@ -639,6 +644,81 @@ export default function App() {
     setTripClipsError(null);
   }
 
+  async function renameClip(clip: MediaClip, nextName: string) {
+    const trimmed = nextName.trim();
+    if (!trimmed) return;
+    try {
+      const response = await fetch(`${API_URL}/api/media/clips/${clip.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: trimmed })
+      });
+      if (!response.ok) {
+        throw new Error(`API returned ${response.status}`);
+      }
+      const data = (await response.json()) as { mediaClip: MediaClip };
+      setTripClips((prev) =>
+        prev.map((existing) =>
+          existing.id === clip.id ? data.mediaClip : existing
+        )
+      );
+    } catch (error) {
+      Alert.alert(
+        "Rename failed",
+        error instanceof Error ? error.message : "Could not rename clip."
+      );
+    }
+  }
+
+  function promptRenameClip(clip: MediaClip) {
+    setRenamingClip(clip);
+    setRenameDraft(clip.name ?? "");
+  }
+
+  async function submitRename() {
+    if (!renamingClip) return;
+    const target = renamingClip;
+    const value = renameDraft;
+    setRenamingClip(null);
+    setRenameDraft("");
+    await renameClip(target, value);
+  }
+
+  async function shareClip(clip: MediaClip) {
+    if (!clip.localUri) {
+      Alert.alert("Cannot share", "This clip is not stored on this device.");
+      return;
+    }
+    try {
+      const info = await FileSystem.getInfoAsync(clip.localUri);
+      if (!info.exists) {
+        Alert.alert(
+          "Cannot share",
+          "Clip file is missing. It may have been removed by the system."
+        );
+        return;
+      }
+      const available = await Sharing.isAvailableAsync();
+      if (!available) {
+        Alert.alert(
+          "Sharing unavailable",
+          "Sharing is not available on this device."
+        );
+        return;
+      }
+      await Sharing.shareAsync(clip.localUri, {
+        dialogTitle: clip.name ?? "Civik clip",
+        mimeType: "video/mp4",
+        UTI: "public.movie"
+      });
+    } catch (error) {
+      Alert.alert(
+        "Share failed",
+        error instanceof Error ? error.message : "Could not share clip."
+      );
+    }
+  }
+
   function formatClipTime(value: string | null | undefined) {
     if (!value) {
       return "Unknown time";
@@ -1010,26 +1090,58 @@ export default function App() {
               keyExtractor={(item) => item.id}
               renderItem={({ item }) => {
                 const hasPlayableUri = Boolean(item.localUri);
+                const displayName =
+                  item.name ??
+                  formatClipTime(item.startedAt ?? item.createdAt);
                 return (
-                  <Pressable
-                    disabled={!hasPlayableUri}
-                    onPress={() => setPlayingClip(item)}
-                    style={({ pressed }) => [
-                      styles.clipCard,
-                      pressed && styles.buttonDisabled,
-                      !hasPlayableUri && styles.clipCardDisabled
-                    ]}
-                  >
-                    <Text style={styles.clipCardTitle}>
-                      {formatClipTime(item.startedAt ?? item.createdAt)}
-                    </Text>
-                    <Text style={styles.meta}>
-                      {Math.round(item.durationSeconds ?? 0)}s • {item.status}
-                    </Text>
-                    <Text style={styles.clipCardCta}>
-                      {hasPlayableUri ? "Tap to play" : "Not stored on this device"}
-                    </Text>
-                  </Pressable>
+                  <View style={styles.clipCard}>
+                    <Pressable
+                      disabled={!hasPlayableUri}
+                      onPress={() => setPlayingClip(item)}
+                      style={({ pressed }) => [
+                        styles.clipCardBody,
+                        pressed && styles.buttonDisabled,
+                        !hasPlayableUri && styles.clipCardDisabled
+                      ]}
+                    >
+                      <Text style={styles.clipCardTitle}>{displayName}</Text>
+                      {item.name ? (
+                        <Text style={styles.meta}>
+                          {formatClipTime(item.startedAt ?? item.createdAt)}
+                        </Text>
+                      ) : null}
+                      <Text style={styles.meta}>
+                        {Math.round(item.durationSeconds ?? 0)}s • {item.status}
+                      </Text>
+                      <Text style={styles.clipCardCta}>
+                        {hasPlayableUri
+                          ? "Tap to play"
+                          : "Not stored on this device"}
+                      </Text>
+                    </Pressable>
+                    <View style={styles.clipCardActions}>
+                      <Pressable
+                        onPress={() => promptRenameClip(item)}
+                        style={({ pressed }) => [
+                          styles.clipActionButton,
+                          pressed && styles.buttonDisabled
+                        ]}
+                      >
+                        <Text style={styles.clipActionText}>Rename</Text>
+                      </Pressable>
+                      <Pressable
+                        disabled={!hasPlayableUri}
+                        onPress={() => shareClip(item)}
+                        style={({ pressed }) => [
+                          styles.clipActionButton,
+                          styles.clipShareButton,
+                          (pressed || !hasPlayableUri) && styles.buttonDisabled
+                        ]}
+                      >
+                        <Text style={styles.clipShareText}>Share</Text>
+                      </Pressable>
+                    </View>
+                  </View>
                 );
               }}
             />
@@ -1037,7 +1149,60 @@ export default function App() {
         </SafeAreaView>
       </Modal>
 
-      <ClipPlayerModal clip={playingClip} onClose={() => setPlayingClip(null)} />
+      {playingClip ? (
+        <ClipPlayerModal
+          key={playingClip.id}
+          clip={playingClip}
+          onClose={() => setPlayingClip(null)}
+        />
+      ) : null}
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setRenamingClip(null)}
+        transparent
+        visible={renamingClip !== null}
+      >
+        <View style={styles.renameBackdrop}>
+          <View style={styles.renameCard}>
+            <Text style={styles.renameTitle}>Rename clip</Text>
+            <Text style={styles.meta}>
+              Give this recording a name you will recognize later.
+            </Text>
+            <TextInput
+              autoFocus
+              maxLength={120}
+              onChangeText={setRenameDraft}
+              placeholder="e.g. pothole near Main and 5th"
+              style={styles.renameInput}
+              value={renameDraft}
+            />
+            <View style={styles.renameActions}>
+              <Pressable
+                onPress={() => setRenamingClip(null)}
+                style={({ pressed }) => [
+                  styles.renameButton,
+                  pressed && styles.buttonDisabled
+                ]}
+              >
+                <Text style={styles.renameButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                disabled={renameDraft.trim().length === 0}
+                onPress={submitRename}
+                style={({ pressed }) => [
+                  styles.renameButton,
+                  styles.renameButtonPrimary,
+                  (pressed || renameDraft.trim().length === 0) &&
+                    styles.buttonDisabled
+                ]}
+              >
+                <Text style={styles.renameButtonPrimaryText}>Save</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1046,12 +1211,51 @@ function ClipPlayerModal({
   clip,
   onClose
 }: {
-  clip: MediaClip | null;
+  clip: MediaClip;
   onClose: () => void;
 }) {
-  const player = useVideoPlayer(clip?.localUri ?? null, (instance) => {
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [isFileChecked, setIsFileChecked] = useState(false);
+  const [resolvedUri, setResolvedUri] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function verify() {
+      if (!clip.localUri) {
+        setFileError("This clip is not stored on this device.");
+        setIsFileChecked(true);
+        return;
+      }
+      try {
+        const info = await FileSystem.getInfoAsync(clip.localUri);
+        if (cancelled) return;
+        if (!info.exists) {
+          setFileError(
+            `Clip file not found at ${clip.localUri}. The app may have been reinstalled since it was recorded.`
+          );
+        } else {
+          setResolvedUri(clip.localUri);
+        }
+      } catch (error) {
+        if (cancelled) return;
+        setFileError(
+          error instanceof Error ? error.message : "Could not read clip file."
+        );
+      } finally {
+        if (!cancelled) {
+          setIsFileChecked(true);
+        }
+      }
+    }
+    void verify();
+    return () => {
+      cancelled = true;
+    };
+  }, [clip.localUri]);
+
+  const player = useVideoPlayer(resolvedUri, (instance) => {
     instance.loop = false;
-    if (clip?.localUri) {
+    if (resolvedUri) {
       instance.play();
     }
   });
@@ -1061,7 +1265,7 @@ function ClipPlayerModal({
       animationType="fade"
       onRequestClose={onClose}
       presentationStyle="fullScreen"
-      visible={clip !== null}
+      visible
     >
       <SafeAreaView style={styles.playerScreen}>
         <View style={styles.playerHeader}>
@@ -1069,7 +1273,12 @@ function ClipPlayerModal({
             <Text style={styles.playerClose}>Done</Text>
           </Pressable>
         </View>
-        {clip?.localUri ? (
+        {!isFileChecked ? (
+          <View style={styles.loading}>
+            <ActivityIndicator color="#ffffff" />
+            <Text style={styles.playerClose}>Loading clip.</Text>
+          </View>
+        ) : resolvedUri ? (
           <VideoView
             allowsFullscreen
             contentFit="contain"
@@ -1078,7 +1287,7 @@ function ClipPlayerModal({
           />
         ) : (
           <View style={styles.historyPadding}>
-            <Text style={styles.meta}>This clip is not stored on this device.</Text>
+            <Text style={styles.playerClose}>{fileError}</Text>
           </View>
         )}
       </SafeAreaView>
@@ -1363,8 +1572,34 @@ const styles = StyleSheet.create({
     borderColor: "#dce3e8",
     borderRadius: 8,
     borderWidth: 1,
+    overflow: "hidden"
+  },
+  clipCardBody: {
     gap: 6,
     padding: 14
+  },
+  clipCardActions: {
+    borderTopColor: "#eef2f5",
+    borderTopWidth: 1,
+    flexDirection: "row"
+  },
+  clipActionButton: {
+    alignItems: "center",
+    flex: 1,
+    paddingVertical: 12
+  },
+  clipActionText: {
+    color: "#172026",
+    fontSize: 14,
+    fontWeight: "700"
+  },
+  clipShareButton: {
+    backgroundColor: "#172026"
+  },
+  clipShareText: {
+    color: "#ffd500",
+    fontSize: 14,
+    fontWeight: "800"
   },
   clipCardDisabled: {
     opacity: 0.55
@@ -1395,5 +1630,55 @@ const styles = StyleSheet.create({
   playerVideo: {
     backgroundColor: "#000000",
     flex: 1
+  },
+  renameBackdrop: {
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
+    flex: 1,
+    justifyContent: "center",
+    padding: 24
+  },
+  renameCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
+    gap: 12,
+    padding: 20,
+    width: "100%"
+  },
+  renameTitle: {
+    color: "#172026",
+    fontSize: 18,
+    fontWeight: "800"
+  },
+  renameInput: {
+    borderColor: "#dce3e8",
+    borderRadius: 8,
+    borderWidth: 1,
+    fontSize: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10
+  },
+  renameActions: {
+    flexDirection: "row",
+    gap: 10,
+    justifyContent: "flex-end"
+  },
+  renameButton: {
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10
+  },
+  renameButtonText: {
+    color: "#172026",
+    fontSize: 15,
+    fontWeight: "700"
+  },
+  renameButtonPrimary: {
+    backgroundColor: "#172026"
+  },
+  renameButtonPrimaryText: {
+    color: "#ffd500",
+    fontSize: 15,
+    fontWeight: "800"
   }
 });

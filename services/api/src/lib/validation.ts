@@ -53,3 +53,7 @@ export const completeMediaClipSchema = z.object({
   sizeBytes: z.number().int().positive().optional(),
   idempotencyKey: z.string().min(1).optional()
 });
+
+export const renameMediaClipSchema = z.object({
+  name: z.string().trim().min(1).max(120)
+});

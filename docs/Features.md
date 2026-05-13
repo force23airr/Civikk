@@ -39,6 +39,8 @@ in code; the rest are direction.
 | Local clip storage | ✅ | Completed clips copied to app document directory before metadata is sent |
 | Trip history view | ✅ | Modal on the main screen lists recent trips with clip and event counts |
 | Tap a trip to see its clips and play them back | ✅ | Uses `expo-video` against each clip's `localUri` on the device |
+| Rename a clip | ✅ | Inline modal with `TextInput` (works on iOS + Android); name persists via `PATCH /api/media/clips/:id` |
+| Share a clip with contacts (email, SMS, AirDrop, etc.) | ✅ | Opens the native share sheet via `expo-sharing` — handoff to any installed app |
 | Offline clip-metadata queue | ⬜ | Not yet — clip file is saved but metadata POST is not queued if offline |
 | Clip retention / cleanup | ⬜ | Not yet — old clips are never deleted |
 | Auto-attach clips to road events (before/after window) | ⬜ | Direction |
@@ -63,7 +65,7 @@ Fastify + Prisma. Idempotent writes via `idempotency-key` header.
 | Health | `GET /health` | ✅ |
 | Trips | `GET /api/trips`, `POST /api/trips/start`, `POST /api/trips/:id/end` | ✅ |
 | Road events | `POST /api/road-events`, `GET /api/road-events`, nearby query | ✅ |
-| Media clips | `POST /api/media/clips`, `GET /api/trips/:tripId/media-clips`, `GET /api/media/clips/:clipId`, `POST /api/media/clips/:clipId/complete` | ✅ (storage provider stubbed) |
+| Media clips | `POST /api/media/clips`, `GET /api/trips/:tripId/media-clips`, `GET /api/media/clips/:clipId`, `PATCH /api/media/clips/:clipId` (rename), `POST /api/media/clips/:clipId/complete` | ✅ (storage provider stubbed) |
 | Real object storage / presigned uploads | — | ⬜ `createPresignPlaceholder` is a stub |
 | Auth (real users/devices) | — | ⬜ everything uses `dev_user` today |
 

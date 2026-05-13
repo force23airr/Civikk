@@ -5,7 +5,8 @@ import { runIdempotent } from "../lib/idempotency";
 import { createPresignPlaceholder, makeMediaStorageKey } from "../lib/storage";
 import {
   completeMediaClipSchema,
-  createMediaClipSchema
+  createMediaClipSchema,
+  renameMediaClipSchema
 } from "../lib/validation";
 
 const PLACEHOLDER_USER_ID = "dev_user";
@@ -73,6 +74,26 @@ export async function mediaRoutes(app: FastifyInstance) {
     if (!clip) {
       return reply.code(404).send({ error: "MediaClipNotFound" });
     }
+
+    return { mediaClip: serializeMediaClip(clip) };
+  });
+
+  app.patch("/api/media/clips/:clipId", async (request, reply) => {
+    const params = request.params as { clipId: string };
+    const body = renameMediaClipSchema.parse(request.body ?? {});
+
+    const existing = await prisma.mediaClip.findFirst({
+      where: { id: params.clipId, userId: PLACEHOLDER_USER_ID }
+    });
+
+    if (!existing) {
+      return reply.code(404).send({ error: "MediaClipNotFound" });
+    }
+
+    const clip = await prisma.mediaClip.update({
+      where: { id: params.clipId },
+      data: { name: body.name }
+    });
 
     return { mediaClip: serializeMediaClip(clip) };
   });

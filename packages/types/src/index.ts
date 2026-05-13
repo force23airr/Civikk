@@ -48,6 +48,7 @@ export interface MediaClip {
   userId: string;
   tripId: string;
   roadEventId?: string | null;
+  name?: string | null;
   status: MediaClipStatus;
   localUri?: string | null;
   storageKey?: string | null;
