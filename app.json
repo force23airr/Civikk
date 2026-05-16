@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "992d763c-8a35-4cfb-afbc-d6bfdb6a3c0f"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.angelfdz03.civik",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    }
+  }
+}
