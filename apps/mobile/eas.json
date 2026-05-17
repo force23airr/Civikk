@@ -7,6 +7,7 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "ios": { "image": "latest" },
       "env": {
         "EXPO_PUBLIC_API_URL": "http://localhost:3000"
       },
@@ -14,6 +15,7 @@
     },
     "preview": {
       "distribution": "internal",
+      "ios": { "image": "latest" },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.civik.local"
       },
@@ -21,6 +23,7 @@
     },
     "production": {
       "autoIncrement": true,
+      "ios": { "image": "latest" },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.civik.com"
       },

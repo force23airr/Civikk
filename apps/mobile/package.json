@@ -18,21 +18,21 @@
   },
   "dependencies": {
     "@civik/types": "file:../../packages/types",
-    "@react-native-async-storage/async-storage": "2.1.2",
-    "expo": "^53.0.0",
-    "expo-camera": "~16.1.11",
-    "expo-dev-client": "~5.2.4",
-    "expo-file-system": "^18.1.11",
-    "expo-location": "~18.1.0",
-    "expo-sharing": "~13.1.5",
-    "expo-status-bar": "~2.2.3",
-    "expo-updates": "~0.28.18",
-    "expo-video": "~2.2.2",
-    "react": "19.0.0",
-    "react-native": "0.79.6"
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "expo": "^55.0.24",
+    "expo-camera": "~55.0.18",
+    "expo-dev-client": "~55.0.34",
+    "expo-file-system": "~55.0.20",
+    "expo-location": "~55.1.10",
+    "expo-sharing": "~55.0.19",
+    "expo-status-bar": "~55.0.6",
+    "expo-updates": "~55.0.22",
+    "expo-video": "~55.0.17",
+    "react": "19.2.0",
+    "react-native": "0.83.6"
   },
   "devDependencies": {
-    "@types/react": "~19.0.10",
-    "typescript": "~5.8.3"
+    "@types/react": "~19.2.10",
+    "typescript": "~5.9.2"
   }
 }

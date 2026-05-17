@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -1989,7 +1989,6 @@ function ClipPlayerModal({
           </View>
         ) : resolvedUri ? (
           <VideoView
-            allowsFullscreen
             contentFit="contain"
             player={player}
             style={styles.playerVideo}

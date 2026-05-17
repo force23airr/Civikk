@@ -18,7 +18,9 @@
           "microphonePermission": "Civik uses the microphone to include audio in trip footage.",
           "recordAudioAndroid": true
         }
-      ]
+      ],
+      "expo-sharing",
+      "expo-video"
     ],
     "ios": {
       "supportsTablet": true,
